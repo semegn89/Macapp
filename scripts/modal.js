@@ -91,6 +91,7 @@ document.addEventListener('DOMContentLoaded', () => {
     return;
   }
 
+  // Открытие модалок
   loginBtn.addEventListener('click', () => {
     loginModal.classList.add('active');
     loginModal.removeAttribute('hidden');
@@ -103,6 +104,7 @@ document.addEventListener('DOMContentLoaded', () => {
     registerModal.style.display = 'flex';
   });
 
+  // Закрытие
   closeBtns.forEach(btn => {
     btn.addEventListener('click', () => {
       const modal = btn.closest('.modal');
@@ -114,7 +116,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   });
 
-  // Обработчик логина
+  // 🧾 Обработка входа
   const loginForm = loginModal.querySelector('#loginForm');
   if (loginForm && !loginForm.dataset.listenerAttached) {
     loginForm.addEventListener('submit', async (e) => {
@@ -126,7 +128,7 @@ document.addEventListener('DOMContentLoaded', () => {
     loginForm.dataset.listenerAttached = 'true';
   }
 
-  // 🆕 Обработчик регистрации
+  // 🆕 Обработка регистрации
   const registerForm = document.getElementById('registerForm');
   if (registerForm && !registerForm.dataset.listenerAttached) {
     registerForm.addEventListener('submit', async e => {
