@@ -354,15 +354,35 @@ function initNavigation() {
 
 // Привязка кнопок выхода и инициализация навигации
 document.addEventListener('DOMContentLoaded', () => {
-  const logoutBtns = ['logoutBtn', 'logoutBtnMobile', 'logoutSidebar'];
-  logoutBtns.forEach(id => {
-    const btn = document.getElementById(id);
-    if (btn) {
-      btn.addEventListener('click', () => {
-        window.handleLogout();
+  const token = localStorage.getItem('token');
+  const userRaw = localStorage.getItem('currentUser');
+
+  if (token && userRaw) {
+    const user = JSON.parse(userRaw);
+    document.body.classList.add('logged-in');
+
+    const logoutBtn = document.getElementById('logoutBtn');
+    if (logoutBtn) {
+      logoutBtn.style.display = 'inline-block';
+      logoutBtn.addEventListener('click', () => {
+        localStorage.removeItem('token');
+        localStorage.removeItem('currentUser');
+        document.body.classList.remove('logged-in');
+        location.reload();
       });
     }
-  });
+
+    // опционально: приветствие
+    const header = document.querySelector('.header');
+    if (header && user.email) {
+      const hello = document.createElement('div');
+      hello.textContent = `Привет, ${user.email}`;
+      hello.style.marginLeft = '1rem';
+      hello.style.color = 'white';
+      header.appendChild(hello);
+    }
+  }
+});
 
   initNavigation();
   initThemeSwitcher();
