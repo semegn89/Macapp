@@ -54,7 +54,6 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 // 📥 Авторизация
 window.handleLoginForm = async (e) => {
-  e.preventDefault();
   const form = e.target;
   const email = form.modalEmail.value;
   const password = form.modalPassword.value;
@@ -80,31 +79,82 @@ window.handleLoginForm = async (e) => {
   }
 };
 
-// 🆕 Регистрация
-document.getElementById('registerForm')?.addEventListener('submit', async e => {
-  e.preventDefault();
-  const form = e.target;
-  const email = form.rEmail.value;
-  const password = form.rPassword.value;
+document.addEventListener('DOMContentLoaded', () => {
+  const loginBtn = document.getElementById('loginBtn');
+  const registerBtn = document.getElementById('registerBtn');
+  const loginModal = document.getElementById('loginModal');
+  const registerModal = document.getElementById('registerModal');
+  const closeBtns = document.querySelectorAll('.modal-close');
 
-  try {
-    const res = await fetch('https://macapp.onrender.com/api/auth/register', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, password })
+  if (!loginBtn || !registerBtn || !loginModal || !registerModal) {
+    console.warn('❗ Modal elements not found in DOM');
+    return;
+  }
+
+  loginBtn.addEventListener('click', () => {
+    loginModal.classList.add('active');
+    loginModal.removeAttribute('hidden');
+    loginModal.style.display = 'flex';
+  });
+
+  registerBtn.addEventListener('click', () => {
+    registerModal.classList.add('active');
+    registerModal.removeAttribute('hidden');
+    registerModal.style.display = 'flex';
+  });
+
+  closeBtns.forEach(btn => {
+    btn.addEventListener('click', () => {
+      const modal = btn.closest('.modal');
+      if (modal) {
+        modal.classList.remove('active');
+        modal.setAttribute('hidden', '');
+        modal.style.display = 'none';
+      }
     });
+  });
 
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.message || 'Ошибка регистрации');
+  // Обработчик логина
+  const loginForm = loginModal.querySelector('#loginForm');
+  if (loginForm && !loginForm.dataset.listenerAttached) {
+    loginForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      if (typeof window.handleLoginForm === 'function') {
+        await window.handleLoginForm(e);
+      }
+    });
+    loginForm.dataset.listenerAttached = 'true';
+  }
 
-    alert('✅ Регистрация успешна. Теперь войдите.');
-    form.reset();
+  // 🆕 Обработчик регистрации
+  const registerForm = document.getElementById('registerForm');
+  if (registerForm && !registerForm.dataset.listenerAttached) {
+    registerForm.addEventListener('submit', async e => {
+      e.preventDefault();
+      const email = registerForm.rEmail.value;
+      const password = registerForm.rPassword.value;
 
-    document.getElementById('registerModal').style.display = 'none';
-    document.getElementById('registerModal').setAttribute('hidden', '');
-    document.getElementById('loginModal').style.display = 'flex';
-    document.getElementById('loginModal').removeAttribute('hidden');
-  } catch (err) {
-    alert('❌ Ошибка: ' + err.message);
+      try {
+        const res = await fetch('https://macapp.onrender.com/api/auth/register', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, password })
+        });
+
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.message || 'Ошибка регистрации');
+
+        alert('✅ Регистрация успешна. Теперь войдите.');
+        registerForm.reset();
+
+        registerModal.style.display = 'none';
+        registerModal.setAttribute('hidden', '');
+        loginModal.style.display = 'flex';
+        loginModal.removeAttribute('hidden');
+      } catch (err) {
+        alert('❌ Ошибка: ' + err.message);
+      }
+    });
+    registerForm.dataset.listenerAttached = 'true';
   }
 });
