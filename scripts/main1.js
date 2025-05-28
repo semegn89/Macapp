@@ -393,14 +393,16 @@ if (localStorage.getItem('isLoggedIn') === 'true') {
   document.body.classList.add('logged-in');
   renderMainSiteContent();
 
-  try {
-    const user = JSON.parse(localStorage.getItem('currentUser'));
-    if (user?.role === 'admin') {
-      window.loadPage?.('adminPanel');
+ try {
+      const user = JSON.parse(localStorage.getItem('currentUser'));
+      if (user?.role === 'admin') {
+        window.loadPage?.('adminPanel');
+      } else {
+        window.loadPage?.('payments'); // 👉 сюда попадёт обычный пользователь
+      }
+    } catch (e) {
+      console.warn('⚠️ Ошибка чтения currentUser при рендере');
     }
-  } catch (e) {
-    console.warn('⚠️ Ошибка чтения currentUser при автозапуске');
-  }
 }
 document.addEventListener('DOMContentLoaded', () => {
   const descriptions = {
