@@ -35,7 +35,36 @@ document.addEventListener('DOMContentLoaded', () => {
         }
       });
     });
+document.getElementById('registerForm')?.addEventListener('submit', async e => {
+  e.preventDefault();
+  const form = e.target;
+  clearErrors(form);
 
+  const email = form.rEmail.value;
+  const password = form.rPassword.value;
+
+  try {
+    const res = await fetch('https://macapp.onrender.com/api/auth/register', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password })
+    });
+
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.message || 'Ошибка регистрации');
+
+    alert('✅ Регистрация успешна. Теперь войдите.');
+    form.reset();
+
+    // Показать форму входа
+    document.getElementById('registerModal').style.display = 'none';
+    document.getElementById('registerModal').setAttribute('hidden', '');
+    document.getElementById('loginModal').style.display = 'flex';
+    document.getElementById('loginModal').removeAttribute('hidden');
+  } catch (err) {
+    alert('❌ Ошибка: ' + err.message);
+  }
+});
     const loginForm = loginModal.querySelector('#loginForm');
     if (loginForm && !loginForm.dataset.listenerAttached) {
       loginForm.addEventListener('submit', async (e) => {
