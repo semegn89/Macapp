@@ -380,13 +380,13 @@ document.addEventListener('DOMContentLoaded', () => {
       header.appendChild(hello);
     }
   }
-});
-
   initNavigation();
   initThemeSwitcher();
   initMobileMenu();
   initCounters();
 });
+
+
 
 // Автозапуск сессии при загрузке страницы
 if (localStorage.getItem('isLoggedIn') === 'true') {
