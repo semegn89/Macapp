@@ -164,34 +164,32 @@ function showToast(message, type = 'info') {
   setTimeout(() => toast.remove(), 3000);
 }
 
-// Минимальная рабочая реализация handleLoginForm (перемещён alert после рендера)
 window.handleLoginForm = async function (e) {
-    e.preventDefault();
-    const login = document.getElementById('modalEmail')?.value.trim();
-    const password = document.getElementById('modalPassword')?.value.trim();
-  
-    if (login === 'admin@mail.ru' && password === '123456') {
-      const adminUser = {
-        email: 'admin@mail.ru',
-        role: 'admin',
-        feePercent: 0,
-        currentBalance: 0,
-        directorName: '',
-        agreementNo: '',
-        agreementDate: ''
-      };
-  
-      localStorage.setItem('isLoggedIn', 'true');
-      localStorage.setItem('currentUser', JSON.stringify(adminUser));
-  
-      closeModal(document.getElementById('loginModal'));
-      showToast('Вход как Админ!', 'success');
-      window.dispatchEvent(new CustomEvent('authChanged'));
-      return;
-    }
-  
-    alert('❌ Неверный логин или пароль');
-  };
+  e.preventDefault();
+  const email = document.getElementById('modalEmail')?.value.trim();
+  const password = document.getElementById('modalPassword')?.value.trim();
+
+  try {
+    const res = await fetch('https://macapp.onrender.com/api/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password })
+    });
+
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.message || 'Ошибка входа');
+
+    localStorage.setItem('token', data.token);
+    localStorage.setItem('currentUser', JSON.stringify(data.user));
+    document.body.classList.add('logged-in');
+
+    closeModal(document.getElementById('loginModal'));
+    showToast('🎉 Вход выполнен', 'success');
+    window.dispatchEvent(new CustomEvent('authChanged'));
+  } catch (err) {
+    alert('❌ Ошибка входа: ' + err.message);
+  }
+};
 
 // ===== updateAuthUI =====
 function updateAuthUI() {
