@@ -19,56 +19,88 @@ function clearErrors(form) {
   form.querySelectorAll('.error-msg').forEach(el => el.style.display = 'none');
 }
 
-// 📥 Login form validation
-document.getElementById('loginForm')?.addEventListener('submit', e => {
+// === Авторизация ===
+window.handleLoginForm = async (e) => {
+  const form = e.target;
+  const email = form.modalEmail.value;
+  const password = form.modalPassword.value;
+
+  try {
+    const res = await fetch('https://macapp.onrender.com/api/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password })
+    });
+
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.message || 'Ошибка входа');
+
+    localStorage.setItem('token', data.token);
+    localStorage.setItem('currentUser', JSON.stringify(data.user));
+    document.body.classList.add('logged-in');
+
+    alert('🎉 Вход выполнен');
+    location.reload();
+  } catch (err) {
+    alert('❌ Ошибка: ' + err.message);
+  }
+};
+
+// === Регистрация ===
+window.handleRegisterForm = async (e) => {
   const form = e.target;
   clearErrors(form);
-  const email = form.modalEmail;
-  const password = form.modalPassword;
+
+  const email = form.rEmail.value;
+  const pass1 = form.rPassword.value;
+  const pass2 = form.rPassword2.value;
+
   let valid = true;
 
-  if (!validateEmail(email.value)) {
-    markInvalid(email, 'Введите корректный email');
+  if (!validateEmail(email)) {
+    markInvalid(form.rEmail, 'Введите корректный email');
     valid = false;
   }
-  if (password.value.length < 6) {
-    markInvalid(password, 'Пароль должен быть не менее 6 символов');
+  if (pass1.length < 6) {
+    markInvalid(form.rPassword, 'Пароль слишком короткий');
     valid = false;
   }
-
-  if (!valid) e.preventDefault();
-});
-
-// 🆕 Register form validation
-document.getElementById('registerForm')?.addEventListener('submit', e => {
-  const form = e.target;
-  clearErrors(form);
-  const email = form.rEmail;
-  const pass1 = form.rPassword;
-  const pass2 = form.rPassword2;
-  let valid = true;
-
-  if (!validateEmail(email.value)) {
-    markInvalid(email, 'Введите корректный email');
-    valid = false;
-  }
-  if (pass1.value.length < 6) {
-    markInvalid(pass1, 'Пароль слишком короткий');
-    valid = false;
-  }
-  if (pass1.value !== pass2.value) {
-    markInvalid(pass2, 'Пароли не совпадают');
+  if (pass1 !== pass2) {
+    markInvalid(form.rPassword2, 'Пароли не совпадают');
     valid = false;
   }
 
-  if (!valid) e.preventDefault();
-});
+  if (!valid) return;
+
+  try {
+    const res = await fetch('https://macapp.onrender.com/api/auth/register', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password: pass1 })
+    });
+
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.message || 'Ошибка регистрации');
+
+    alert('✅ Регистрация успешна. Теперь войдите.');
+    form.reset();
+
+    document.getElementById('registerModal').style.display = 'none';
+    document.getElementById('registerModal').setAttribute('hidden', '');
+    document.getElementById('loginModal').style.display = 'flex';
+    document.getElementById('loginModal').removeAttribute('hidden');
+  } catch (err) {
+    alert('❌ Ошибка: ' + err.message);
+  }
+};
+
 document.addEventListener('DOMContentLoaded', () => {
   const loginBtn = document.getElementById('loginBtn');
   const registerBtn = document.getElementById('registerBtn');
   const loginModal = document.getElementById('loginModal');
   const registerModal = document.getElementById('registerModal');
   const switchToLoginBtn = document.getElementById('switchToLogin');
+  const switchToRegisterBtn = document.getElementById('switchToRegister');
   const closeBtns = document.querySelectorAll('.modal-close');
 
   if (!loginBtn || !registerBtn || !loginModal || !registerModal) {
@@ -76,21 +108,21 @@ document.addEventListener('DOMContentLoaded', () => {
     return;
   }
 
+  // Открытие модалок
   loginBtn.addEventListener('click', () => {
-    console.log('🟢 Открытие loginModal');
     loginModal.classList.add('active');
     loginModal.removeAttribute('hidden');
     loginModal.style.display = 'flex';
   });
 
   registerBtn.addEventListener('click', () => {
-    console.log('🟢 Открытие registerModal');
     registerModal.classList.add('active');
     registerModal.removeAttribute('hidden');
     registerModal.style.display = 'flex';
   });
 
-  if (switchToLoginBtn && loginModal && registerModal) {
+  // Переключение между модалками
+  if (switchToLoginBtn) {
     switchToLoginBtn.addEventListener('click', () => {
       registerModal.classList.remove('active');
       registerModal.setAttribute('hidden', '');
@@ -101,25 +133,24 @@ document.addEventListener('DOMContentLoaded', () => {
       loginModal.style.display = 'flex';
     });
   }
-  const switchToRegisterBtn = document.getElementById('switchToRegister');
 
-if (switchToRegisterBtn && loginModal && registerModal) {
-  switchToRegisterBtn.addEventListener('click', () => {
-    loginModal.classList.remove('active');
-    loginModal.setAttribute('hidden', '');
-    loginModal.style.display = 'none';
+  if (switchToRegisterBtn) {
+    switchToRegisterBtn.addEventListener('click', () => {
+      loginModal.classList.remove('active');
+      loginModal.setAttribute('hidden', '');
+      loginModal.style.display = 'none';
 
-    registerModal.classList.add('active');
-    registerModal.removeAttribute('hidden');
-    registerModal.style.display = 'flex';
-  });
-}
+      registerModal.classList.add('active');
+      registerModal.removeAttribute('hidden');
+      registerModal.style.display = 'flex';
+    });
+  }
 
+  // Закрытие модалок
   closeBtns.forEach(btn => {
     btn.addEventListener('click', () => {
       const modal = btn.closest('.modal');
       if (modal) {
-        console.log('❌ Закрытие модалки');
         modal.classList.remove('active');
         modal.setAttribute('hidden', '');
         modal.style.display = 'none';
@@ -127,20 +158,23 @@ if (switchToRegisterBtn && loginModal && registerModal) {
     });
   });
 
+  // Обработка login
   const loginForm = loginModal.querySelector('#loginForm');
   if (loginForm && !loginForm.dataset.listenerAttached) {
     loginForm.addEventListener('submit', async (e) => {
       e.preventDefault();
-      console.log('🧪 Проверка наличия window.handleLoginForm...');
-
-      if (typeof window.handleLoginForm === 'function') {
-        console.log('✅ window.handleLoginForm существует, вызываем...');
-        await window.handleLoginForm(e);
-      } else {
-        console.error('❌ window.handleLoginForm не определён на момент submit');
-      }
+      await window.handleLoginForm(e);
     });
     loginForm.dataset.listenerAttached = 'true';
   }
-  
+
+  // Обработка register
+  const registerForm = document.getElementById('registerForm');
+  if (registerForm && !registerForm.dataset.listenerAttached) {
+    registerForm.addEventListener('submit', async e => {
+      e.preventDefault();
+      await window.handleRegisterForm(e);
+    });
+    registerForm.dataset.listenerAttached = 'true';
+  }
 });
