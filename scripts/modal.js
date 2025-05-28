@@ -65,6 +65,33 @@ document.getElementById('registerForm')?.addEventListener('submit', async e => {
     alert('❌ Ошибка: ' + err.message);
   }
 });
+    window.handleLoginForm = async (e) => {
+  e.preventDefault();
+  const form = e.target;
+  const email = form.modalEmail.value;
+  const password = form.modalPassword.value;
+
+  try {
+    const res = await fetch('https://macapp.onrender.com/api/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password })
+    });
+
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.message || 'Ошибка входа');
+
+    // Сохраняем вход
+    localStorage.setItem('token', data.token);
+    localStorage.setItem('currentUser', JSON.stringify(data.user));
+    document.body.classList.add('logged-in');
+
+    alert('🎉 Вход выполнен');
+    location.reload(); // Или переключить UI вручную
+  } catch (err) {
+    alert('❌ Ошибка: ' + err.message);
+  }
+};
     const loginForm = loginModal.querySelector('#loginForm');
     if (loginForm && !loginForm.dataset.listenerAttached) {
       loginForm.addEventListener('submit', async (e) => {
