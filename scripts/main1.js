@@ -211,12 +211,6 @@ window.addEventListener('authChanged', () => {
 });
   
 
-window.handleRegisterForm = async function (e) {
-  e.preventDefault();
-  alert('📦 Регистрация временно не работает');
-};
-
-
 window.debugLoginFlow = async () => {
   console.log('🧪 Тест: старт');
 
@@ -250,30 +244,27 @@ window.debugLoginFlow = async () => {
 function renderMainSiteContent() {
   console.log('🧩 renderMainSiteContent ВЫЗВАН (внутри)');
   try {
-    console.log('🧩 renderMainSiteContent вызван');
-
     const content = document.getElementById('content');
     if (content) {
       content.style.display = '';
       console.log('✅ content включен');
-    } else {
-      console.warn('❌ content не найден');
     }
 
     const cabinetCss = document.getElementById('cabinetCss');
     if (cabinetCss) {
       cabinetCss.removeAttribute('disabled');
       console.log('✅ cabinetCss включен');
-    } else {
-      console.warn('❌ cabinetCss не найден');
     }
 
     document.querySelector('footer.footer')?.style.setProperty('display', 'none');
-    console.log('📦 Кабинет отрисован, вызываем adminPanel...');
     hidePreloader();
-    // 👉 Добавлено по инструкции:
-    console.log('📢 Переход к adminPanel после preloader');
-    window.loadPage?.('adminPanel');
+
+    const user = JSON.parse(localStorage.getItem('currentUser'));
+    if (user?.role === 'admin') {
+      window.loadPage?.('adminPanel');
+    } else {
+      window.loadPage?.('payments'); // ✅ для обычных пользователей
+    }
   } catch (err) {
     console.error('❌ Ошибка в renderMainSiteContent:', err);
   }
