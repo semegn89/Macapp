@@ -610,3 +610,17 @@ body.dark-mode textarea {
     grid-template-columns: 1fr;
   }
 }
+.chat-bubble {
+  margin: 12px 0;
+  padding: 12px 16px;
+  border-radius: 12px;
+  background: #f6faff;
+  max-width: 90%;
+  min-width: 80px;
+  box-shadow: 0 1px 4px 0 #d6e7ff33;
+  word-break: break-word;
+}
+.chat-bubble.admin { background: #e3eaff; text-align: left; }
+.chat-bubble.user { background: #d1f7d1; text-align: right; margin-left: auto; }
+.chat-bubble .meta { font-size: 0.83em; color: #888; margin-top: 4px; }
+.chat-bubble .author { font-weight: 600; }

@@ -2,8 +2,197 @@
 
 /* adminPanel.js */
 import { showToast, readFileAndStore } from './utils.js';
-import { getItem, setItem } from './dbStorage.js';
+// import { getItem, setItem } from './dbStorage.js';
 import { renderAdminStats } from './statsadmin.js';
+
+// Универсальный рендер сообщений для чатов (общий для админа и юзера)
+function renderMessages(arr, container, currentUserRole = 'admin') {
+  container.innerHTML = '';
+  arr.forEach(msg => {
+    const who = msg.from === 'user' ? 'user' : 'admin';
+    const name = who === 'user'
+      ? (msg.userEmail || "Пользователь")
+      : "Менеджер";
+    const text = msg.fileName
+      ? `<a href="${msg.fileData}" class="file-link" download="${msg.fileName}">${msg.fileName}</a>`
+      : msg.text;
+    const div = document.createElement('div');
+    div.className = `chat-bubble ${who}`;
+    div.innerHTML = `
+      <div class="text">${text}</div>
+      <div class="meta">
+        <span class="author">${name}</span> ${msg.date || ''}
+      </div>
+    `;
+    container.appendChild(div);
+  });
+  container.scrollTop = container.scrollHeight;
+}
+// Новый раздел: Чаты с пользователями (унифицированный рендер)
+export async function renderAdminChats() {
+  const chatsData = await getItem('adminChats');
+  let allChats = chatsData ? JSON.parse(chatsData) : {};
+  let userEmails = Object.keys(allChats);
+
+  const details = document.querySelector('.details');
+  details.innerHTML = `
+    <h1>Чаты с пользователями</h1>
+    <div style="margin-bottom:10px;">
+      <input type="text" id="chatSearchInput" placeholder="Поиск по email..." style="padding:5px;">
+      <button id="chatSearchBtn" class="button button-sm" style="margin-left:5px;">Поиск</button>
+    </div>
+    <div id="chatCardsContainer" style="display:flex; flex-wrap:wrap; gap:20px;"></div>
+    <div id="adminChatDialog" style="display:none; margin-top:20px;">
+      <button id="backToList" class="button button-outline" style="margin-bottom:12px;">Назад</button>
+      <h3 id="chatWithUser"></h3>
+      <div id="adminChatHistory" style="height:280px;overflow-y:auto;background:#f6faff;border-radius:10px;padding:8px 6px 4px 6px;margin-bottom:14px;border:1px solid #ccc;"></div>
+      <div style="display:flex; gap:5px;">
+        <input type="file" id="adminChatFile" style="width:160px; display:none;" />
+        <button id="adminAttachFileBtn" class="button button-sm">📎</button>
+        <input type="text" id="adminMsgInput" placeholder="Ответ пользователю..." style="flex:1;">
+        <button id="adminSendBtn" class="button button-sm">Отправить</button>
+      </div>
+    </div>
+  `;
+  const chatSearchInput    = details.querySelector('#chatSearchInput');
+  const chatSearchBtn      = details.querySelector('#chatSearchBtn');
+  const chatCardsContainer = details.querySelector('#chatCardsContainer');
+  const adminChatDialog    = details.querySelector('#adminChatDialog');
+  const backBtn            = details.querySelector('#backToList');
+  const adminChatHistory   = details.querySelector('#adminChatHistory');
+  const adminMsgInput      = details.querySelector('#adminMsgInput');
+  const adminChatFile      = details.querySelector('#adminChatFile');
+  const adminAttachFileBtn = details.querySelector('#adminAttachFileBtn');
+  const adminSendBtn       = details.querySelector('#adminSendBtn');
+  let selectedUserEmail = null;
+
+  chatSearchBtn.addEventListener('click', () => {
+    const term = chatSearchInput.value.trim().toLowerCase();
+    renderChatCards(term);
+  });
+
+  function renderChatCards(searchTerm='') {
+    chatCardsContainer.innerHTML = '';
+    let filtered = userEmails;
+    if (searchTerm) {
+      filtered = userEmails.filter(em => em.toLowerCase().includes(searchTerm));
+    }
+    if (!filtered.length) {
+      chatCardsContainer.innerHTML = '<p>Нет чатов с таким запросом.</p>';
+      return;
+    }
+
+    filtered.forEach(email => {
+      const chatArr = allChats[email] || [];
+      const hasUnread = chatArr.some(m => m.from === 'user' && !m.readByAdmin);
+      // Последнее сообщение
+      let lastMsg = chatArr.length ? chatArr[chatArr.length-1] : null;
+      let lastMsgText = '';
+      if (lastMsg) {
+        if (lastMsg.fileName) {
+          lastMsgText = `<span class="chat-card-lastmsg"><span style="color:#666;">📎</span> ${lastMsg.fileName}</span>`;
+        } else {
+          lastMsgText = `<span class="chat-card-lastmsg">${lastMsg.text ? lastMsg.text.substring(0, 80) : ''}</span>`;
+        }
+      }
+      // Аватарка (инициал)
+      const avatarInitial = email[0] ? email[0].toUpperCase() : '?';
+      const card = document.createElement('div');
+      card.className = 'admin-chat-card';
+      card.innerHTML = `
+        <div style="display: flex; align-items: center; gap: 12px;">
+          <div style="background: #c6dafc; color: #1762aa; font-weight:600; width:38px; height:38px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:1.3em;">
+            ${avatarInitial}
+          </div>
+          <div>
+            <div class="chat-card-title">${email}</div>
+            ${lastMsgText}
+          </div>
+        </div>
+        <div style="display: flex; align-items: center; justify-content: space-between; margin-top: 8px;">
+          <span style="font-size:0.98em; color:${hasUnread ? '#d32f2f' : '#388e3c'};">
+            ${hasUnread ? 'Непрочитанные сообщения' : 'Все прочитано'}
+          </span>
+          <button class="openChatBtn button button-sm" style="margin-left:10px;">Открыть чат</button>
+        </div>
+      `;
+      card.querySelector('.openChatBtn').addEventListener('click', () => {
+        selectedUserEmail = email;
+        showAdminChatDetail(email);
+      });
+      chatCardsContainer.appendChild(card);
+    });
+
+    adminChatDialog.style.display = 'none';
+    chatCardsContainer.style.display = '';
+  }
+
+  renderChatCards();
+
+  backBtn.addEventListener('click', () => {
+    adminChatDialog.style.display = 'none';
+    chatCardsContainer.style.display = '';
+  });
+
+  async function showAdminChatDetail(userEmail) {
+    // Показываем диалог, прячем список
+    adminChatDialog.style.display = '';
+    chatCardsContainer.style.display = 'none';
+    details.querySelector('#chatWithUser').textContent = `Диалог с ${userEmail}`;
+    // Грузим сообщения
+    let allChats = JSON.parse(await getItem('adminChats') || '{}');
+    let userChat = allChats[userEmail] || [];
+    // Помечаем сообщения как прочитанные
+    userChat.forEach(msg => { if (msg.from === 'user') msg.readByAdmin = true; });
+    allChats[userEmail] = userChat;
+    await setItem('adminChats', JSON.stringify(allChats));
+
+    // Единый рендер сообщений через renderMessages
+    renderMessages(userChat, adminChatHistory, 'admin');
+
+    adminAttachFileBtn.onclick = () => adminChatFile.click();
+    adminSendBtn.onclick = sendAdminMsg;
+    adminMsgInput.onkeypress = (e) => { if (e.key === 'Enter') sendAdminMsg(); };
+
+    function sendAdminMsg() {
+      const txt = adminMsgInput.value.trim();
+      const file = adminChatFile.files[0];
+      if (!txt && !file) {
+        showToast('Введите текст или выберите файл', 'error');
+        return;
+      }
+      let msgObj = {
+        userEmail,
+        from: 'admin',
+        text: '',
+        fileName: '',
+        fileData: '',
+        date: new Date().toLocaleString()
+      };
+      if (file) {
+        const reader = new FileReader();
+        reader.onload = async (ev) => {
+          msgObj.fileName = file.name;
+          msgObj.fileData = ev.target.result;
+          userChat.push(msgObj);
+          allChats[userEmail] = userChat;
+          await setItem('adminChats', JSON.stringify(allChats));
+          adminChatFile.value = '';
+          adminMsgInput.value = '';
+          renderMessages(userChat, adminChatHistory, 'admin');
+        };
+        reader.readAsDataURL(file);
+      } else {
+        msgObj.text = txt;
+        userChat.push(msgObj);
+        allChats[userEmail] = userChat;
+        setItem('adminChats', JSON.stringify(allChats));
+        adminMsgInput.value = '';
+        renderMessages(userChat, adminChatHistory, 'admin');
+      }
+    }
+  }
+}
 
 /**
  * Рендер админ-панели. Доступно только для пользователей с role==='admin'.
@@ -24,224 +213,35 @@ export async function renderAdminPanel() {
 
   details.innerHTML = `
     <h1>Админ-панель</h1>
-    <p>Управляйте пользователями, платежами, документами, шаблонами, а также просматривайте чаты.</p>
+    <p>Управляйте пользователями, платежами, документами, шаблонами.</p>
     <div style="margin-top:20px;" id="adminActions"></div>
   `;
 
   const adminActions = details.querySelector('#adminActions');
   adminActions.innerHTML = `
-    <button id="manageChatsBtn" class="button">Чаты</button>
-    <button id="manageUsersBtn" class="button" style="margin-left:10px;">Пользователи</button>
-    <button id="manageRatesBtn" class="button" style="margin-left:10px;">Редактировать курсы</button>
-    <button id="manageStatsBtn" class="button" style="margin-left:10px;">Статистика (маржа)</button>
-    <div id="adminContent" style="margin-top:30px;"></div>
-  `;
+  <button id="manageUsersBtn" class="button">Пользователи</button>
+  <button id="manageRatesBtn" class="button" style="margin-left:10px;">Редактировать курсы</button>
+  <button id="manageStatsBtn" class="button" style="margin-left:10px;">Статистика (маржа)</button>
+  <button id="manageRequestsBtn" class="button" style="margin-left:10px;">Заявки с сайта</button>
+  <div id="adminContent" style="margin-top:30px;"></div>
+`;
 
-  const manageChatsBtn = adminActions.querySelector('#manageChatsBtn');
   const manageUsersBtn = adminActions.querySelector('#manageUsersBtn');
   const manageRatesBtn = adminActions.querySelector('#manageRatesBtn');
   const manageStatsBtn = adminActions.querySelector('#manageStatsBtn');
   const adminContent   = adminActions.querySelector('#adminContent');
 
-  manageChatsBtn.addEventListener('click', renderAdminChats);
   manageUsersBtn.addEventListener('click', renderAdminUsers);
   manageRatesBtn.addEventListener('click', renderAdminRates);
   manageStatsBtn.addEventListener('click', renderAdminStats);
-
-  // --- Чаты с пользователями ---
-  async function renderAdminChats() {
-    const chatsData = await getItem('adminChats');
-    let allChats = chatsData ? JSON.parse(chatsData) : {};
-    let userEmails = Object.keys(allChats);
-
-    adminContent.innerHTML = `
-      <h3>Чаты с пользователями</h3>
-      <div style="margin-bottom:10px;">
-        <input type="text" id="chatSearchInput" placeholder="Поиск по email..." style="padding:5px;">
-        <button id="chatSearchBtn" class="button button-sm" style="margin-left:5px;">Поиск</button>
-      </div>
-      <div id="chatCardsContainer" style="display:flex; flex-wrap:wrap; gap:20px;"></div>
-    `;
-    const chatSearchInput    = adminContent.querySelector('#chatSearchInput');
-    const chatSearchBtn      = adminContent.querySelector('#chatSearchBtn');
-    const chatCardsContainer = adminContent.querySelector('#chatCardsContainer');
-
-    chatSearchBtn.addEventListener('click', () => {
-      const term = chatSearchInput.value.trim().toLowerCase();
-      renderChatCards(term);
-    });
-
-    function renderChatCards(searchTerm='') {
-      chatCardsContainer.innerHTML = '';
-      let filtered = userEmails;
-      if (searchTerm) {
-        filtered = userEmails.filter(em => em.toLowerCase().includes(searchTerm));
-      }
-      if (!filtered.length) {
-        chatCardsContainer.innerHTML = '<p>Нет чатов с таким запросом.</p>';
-        return;
-      }
-
-      filtered.forEach(email => {
-        const chatArr = allChats[email] || [];
-        const hasUnread = chatArr.some(m => m.from === 'user' && !m.readByAdmin);
-
-        const card = document.createElement('div');
-        card.style.width = '7cm';
-        card.style.height= '7cm';
-        card.style.border= '1px solid #ccc';
-        card.style.borderRadius= '8px';
-        card.style.padding= '10px';
-        card.style.display= 'flex';
-        card.style.flexDirection= 'column';
-        card.style.justifyContent= 'space-between';
-
-        card.innerHTML = `
-          <div>
-            <h4 style="margin-bottom:5px;">${email}</h4>
-            ${
-              hasUnread
-                ? `<p style="color:red;">Непрочитанные сообщения</p>`
-                : `<p style="color:green;">Все прочитано</p>`
-            }
-          </div>
-          <button class="openChatBtn button button-sm">Открыть чат</button>
-        `;
-        card.querySelector('.openChatBtn').addEventListener('click', () => {
-          showAdminChatDetail(email);
-        });
-        chatCardsContainer.appendChild(card);
-      });
-    }
-
-    renderChatCards();
-  }
-
-  let chatIntervalId = null;
-  async function showAdminChatDetail(userEmail) {
-    adminContent.innerHTML = `
-      <h4>Чат с ${userEmail}</h4>
-      <div id="adminChatHistory" style="margin-bottom:10px; height:300px; overflow-y:auto; border:1px solid #ccc; padding:10px;"></div>
-      <div style="display:flex; gap:5px;">
-        <input type="file" id="adminChatFile" style="width:160px; display:none;" />
-        <button id="adminAttachFileBtn" class="button button-sm">📎</button>
-        <input type="text" id="adminMsgInput" placeholder="Ответ пользователю..." style="flex:1;">
-        <button id="adminSendBtn" class="button button-sm">Отправить</button>
-      </div>
-    `;
-
-    const adminChatHistory   = document.getElementById('adminChatHistory');
-    const adminMsgInput      = document.getElementById('adminMsgInput');
-    const adminChatFile      = document.getElementById('adminChatFile');
-    const adminAttachFileBtn = document.getElementById('adminAttachFileBtn');
-    const adminSendBtn       = document.getElementById('adminSendBtn');
-
-    let chatsData = await getItem('adminChats');
-    let allChats  = chatsData ? JSON.parse(chatsData) : {};
-    let userChat  = allChats[userEmail] || [];
-
-    function renderAdminMessages() {
-      adminChatHistory.innerHTML = '';
-      userChat.forEach(msg => {
-        if (msg.from === 'user') {
-          msg.readByAdmin = true;
-        }
-        const wrap = document.createElement('div');
-        wrap.className = `chat-message ${msg.from==='user' ? 'user-message' : 'admin-message'}`;
-
-        let avatarSrc = (msg.from==='user')
-          ? 'src/images/user_avatar.png'
-          : 'src/images/admin_avatar.png';
-
-        let contentHtml = msg.text || '';
-        if (msg.fileName) {
-          contentHtml = `<a href="${msg.fileData}" download="${msg.fileName}">${msg.fileName}</a>`;
-        }
-        wrap.innerHTML = `
-          <img class="chat-avatar" src="${avatarSrc}" alt="avatar">
-          <div>
-            <div class="message-content">${contentHtml}</div>
-            <div class="chat-date">${msg.date}</div>
-          </div>
-        `;
-        adminChatHistory.appendChild(wrap);
-      });
-      adminChatHistory.scrollTop = adminChatHistory.scrollHeight;
-      allChats[userEmail] = userChat;
-      setItem('adminChats', JSON.stringify(allChats));
-    }
-
-    renderAdminMessages();
-
-    if (chatIntervalId) clearInterval(chatIntervalId);
-    chatIntervalId = setInterval(async () => {
-      const cData = await getItem('adminChats');
-      let newAll = cData ? JSON.parse(cData) : {};
-      userChat = newAll[userEmail] || [];
-      renderAdminMessages();
-    }, 5000);
-
-    adminAttachFileBtn.addEventListener('click', () => {
-      adminChatFile.click();
-    });
-    adminSendBtn.addEventListener('click', sendAdminMsg);
-    adminMsgInput.addEventListener('keypress', (e)=>{
-      if (e.key==='Enter') sendAdminMsg();
-    });
-
-    async function sendAdminMsg() {
-      const txt = adminMsgInput.value.trim();
-      const file = adminChatFile.files[0];
-
-      if (!txt && !file) {
-        showToast('Введите текст или выберите файл', 'error');
-        return;
-      }
-
-      if (file) {
-        const reader = new FileReader();
-        reader.onload = async (ev) => {
-          const dataURL = ev.target.result;
-          const msgObj = {
-            userEmail,
-            from: 'admin',
-            text: '',
-            fileName: file.name,
-            fileData: dataURL,
-            date: new Date().toLocaleString()
-          };
-          userChat.push(msgObj);
-          allChats[userEmail] = userChat;
-          await setItem('adminChats', JSON.stringify(allChats));
-          adminChatFile.value = '';
-          adminMsgInput.value = '';
-          renderAdminMessages();
-        };
-        reader.readAsDataURL(file);
-      } else {
-        const msgObj = {
-          userEmail,
-          from: 'admin',
-          text: txt,
-          fileName: '',
-          fileData: '',
-          date: new Date().toLocaleString()
-        };
-        userChat.push(msgObj);
-        allChats[userEmail] = userChat;
-        await setItem('adminChats', JSON.stringify(allChats));
-        adminMsgInput.value = '';
-        renderAdminMessages();
-      }
-    }
-  }
+  const manageRequestsBtn = adminActions.querySelector('#manageRequestsBtn');
+  manageRequestsBtn.addEventListener('click', renderAdminRequestsPanel);
 
   /* ---------------------------------------------
      2) УПРАВЛЕНИЕ ПОЛЬЗОВАТЕЛЯМИ
   --------------------------------------------- */
   async function renderAdminUsers() {
-    const usersData = await getItem('users');
-    const users = usersData ? JSON.parse(usersData) : [];
+    const users = await fetch('/api/users').then(r => r.json());
     const filtered = users.filter(u => u.role !== 'admin');
 
     adminContent.innerHTML = `
@@ -307,10 +307,17 @@ export async function renderAdminPanel() {
     renderUsersCards();
   }
 
+  async function renderAdminRequestsPanel() {
+    adminContent.innerHTML = `
+      <h2 style="margin-bottom: 16px;">Заявки с сайта</h2>
+      <div id="adminRequestsList"></div>
+    `;
+    loadAdminRequests();
+  }
 
 async function showEditUserForm(userEmail) {
-  const usersData = await getItem('users');
-  let users = usersData ? JSON.parse(usersData) : [];
+  // Получить пользователя с сервера
+  const users = await fetch('/api/users').then(r => r.json());
   let userObj = users.find(u => u.email === userEmail);
   if (!userObj) {
     showToast('Пользователь не найден', 'error');
@@ -393,11 +400,16 @@ async function showEditUserForm(userEmail) {
       directorName: fd.get('directorName') || ''
     };
 
-    let idx = users.findIndex(x => x.email === userEmail);
-    if (idx !== -1) {
-      users[idx] = { ...users[idx], ...newData };
-      await setItem('users', JSON.stringify(users));
+    // PATCH-запрос на сервер
+    try {
+      await fetch(`/api/users/${userObj.id || encodeURIComponent(userObj.email)}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newData)
+      });
       showToast('Пользователь обновлён!', 'success');
+    } catch (err) {
+      showToast('Ошибка обновления пользователя', 'error');
     }
   });
 
@@ -407,18 +419,23 @@ async function showEditUserForm(userEmail) {
       showToast('Введите текст уведомления', 'error');
       return;
     }
-    let idx = users.findIndex(x => x.email === userEmail);
-    if (idx === -1) return;
-    if (!users[idx].notifications) {
-      users[idx].notifications = [];
+    // PATCH-запрос на сервер для добавления уведомления
+    try {
+      await fetch(`/api/users/${userObj.id || encodeURIComponent(userObj.email)}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          addNotification: {
+            date: new Date().toLocaleString(),
+            text: txt
+          }
+        })
+      });
+      showToast('Уведомление добавлено!', 'success');
+      adminNotifyText.value = '';
+    } catch (err) {
+      showToast('Ошибка добавления уведомления', 'error');
     }
-    users[idx].notifications.push({
-      date: new Date().toLocaleString(),
-      text: txt
-    });
-    await setItem('users', JSON.stringify(users));
-    showToast('Уведомление добавлено!', 'success');
-    adminNotifyText.value = '';
   });
 }
 

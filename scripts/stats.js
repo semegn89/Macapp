@@ -1,21 +1,12 @@
+// Полностью серверная версия: localStorage не используется
 import { showToast, showPreview } from './utils.js';
-import { getItem, setItem } from './dbStorage.js';
 
 export async function renderStatsPage() {
   const details = document.querySelector('.details');
-  // Загружаем платежи из IndexedDB
-  const paymentsData = await getItem('payments');
-  let payments = paymentsData ? JSON.parse(paymentsData) : [];
-  
-  // Загружаем текущего пользователя из IndexedDB
-  const curUserData = await getItem('currentUser');
-  const curUser = curUserData ? JSON.parse(curUserData) : {};
-  const isAdmin = (curUser.role === 'admin');
 
-  // Если не админ, оставляем только платежи этого пользователя
-  if (!isAdmin) {
-    payments = payments.filter(x => x.ownerEmail === curUser.email);
-  }
+  // Получаем текущего пользователя из глобального объекта
+  const curUser = window.currentUser || {};
+  const isAdmin = (curUser.role === 'admin');
 
   details.style.background = 'rgba(255,255,255,1)';
 
@@ -95,18 +86,39 @@ export async function renderStatsPage() {
   const statTotalRubEl    = details.querySelector('#statTotalRub');
   const statsByCurrencyEl = details.querySelector('#statsByCurrency');
 
-  // Для конвертации берём курсы из IndexedDB (используем ключ adminRates2)
-  const ratesData = await getItem('adminRates2');
-  let defRates = { RUB: 1, AED: 22, USD: 88, EUR: 94, CNY: 14, GBP: 122 };
-  let rates = ratesData ? JSON.parse(ratesData) : defRates;
+  let payments = [];
+  let rates = null;
 
-  // Обработчики кнопок фильтрации и экспорта PDF
-  applyDateBtn.addEventListener('click', () => {
-    renderCharts();
-  });
-  exportPdfBtn.addEventListener('click', () => {
-    exportPdfForPeriod();
-  });
+  // Функция загрузки данных с сервера
+  async function loadData() {
+    try {
+      // Загрузка платежей
+      const paymentsResp = await fetch('/api/payments');
+      if (!paymentsResp.ok) throw new Error('Ошибка загрузки платежей');
+      let allPayments = await paymentsResp.json();
+
+      // Фильтрация платежей по пользователю (если не админ)
+      if (!isAdmin) {
+        payments = allPayments.filter(x => x.ownerEmail === curUser.email);
+      } else {
+        payments = allPayments;
+      }
+    } catch (e) {
+      showToast(e.message || 'Ошибка загрузки платежей', 'error');
+      payments = [];
+    }
+
+    try {
+      // Загрузка курсов
+      const ratesResp = await fetch('/api/rates');
+      if (!ratesResp.ok) throw new Error('Ошибка загрузки курсов валют');
+      rates = await ratesResp.json();
+    } catch (e) {
+      showToast(e.message || 'Ошибка загрузки курсов валют', 'error');
+      // Задаём дефолтные курсы, чтобы не ломать логику
+      rates = { RUB: 1, AED: 22, USD: 88, EUR: 94, CNY: 14, GBP: 122 };
+    }
+  }
 
   // Функция отрисовки графиков и статистики
   function renderCharts(){
@@ -176,9 +188,6 @@ export async function renderStatsPage() {
         }
       });
     }
-    // сдлеаем проверку на наличие элемента monthlyCanvas
-    // и только потом отрисовываем график
-      
 
     // График по месяцам
     const monthlyCanvas = details.querySelector('#monthlyChart');
@@ -245,6 +254,15 @@ export async function renderStatsPage() {
     doc.save('report.pdf');
   }
 
-  // Первичная отрисовка статистики
+  // Загрузка данных и первичная отрисовка статистики
+  await loadData();
   renderCharts();
+
+  // Обработчики кнопок фильтрации и экспорта PDF
+  applyDateBtn.addEventListener('click', () => {
+    renderCharts();
+  });
+  exportPdfBtn.addEventListener('click', () => {
+    exportPdfForPeriod();
+  });
 }

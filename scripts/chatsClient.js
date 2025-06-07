@@ -28,13 +28,18 @@ export async function renderChatList() {
       const lastMsg = chat[chat.length - 1];
       const unreadCount = chat.filter(m => m.from === 'user' && !m.readByAdmin).length;
       html += `<li class="chat-item" data-email="${userEmail}">
-                <div class="chat-item-header">
-                  <span class="chat-user">${userEmail}</span>
-                  ${unreadCount > 0 ? `<span class="chat-unread">${unreadCount}</span>` : ''}
-                </div>
-                <div class="chat-item-last">
-                  ${lastMsg ? (lastMsg.text || '[файл]') : ''}
-                </div>
+                <div class="chat-bubble user">
+  <div class="text">Ваш текст сообщения или <a class="file-link" href="file" download>файл.pdf</a></div>
+  <div class="meta">
+    <span class="author">Вы</span> 01.06.2025, 13:10
+  </div>
+</div>
+<div class="chat-bubble admin">
+  <div class="text">Ответ менеджера</div>
+  <div class="meta">
+    <span class="author">Менеджер</span> 01.06.2025, 13:12
+  </div>
+</div>
               </li>`;
     }
     html += `</ul>`;

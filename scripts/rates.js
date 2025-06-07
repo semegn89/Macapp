@@ -1,5 +1,4 @@
 import { showToast } from './utils.js';
-import { getItem, setItem } from './dbStorage.js';
 
 // Объект с флагами для валют
 const flagsMap = {
@@ -11,49 +10,128 @@ const flagsMap = {
   GBP: './images/flags/gb.png'
 };
 
-export async function renderRatesPage() {
-  const defaultRates = {
-    RUB: { cb: 1, agent: 1 },
-    USD: { cb: 76, agent: 88 },
-    EUR: { cb: 80, agent: 94 },
-    AED: { cb: 20, agent: 22 },
-    CNY: { cb: 12, agent: 14 },
-    GBP: { cb: 115, agent: 122 }
-  };
+let selectedDate = new Date().toISOString().slice(0,10);
+let rates = null;
+let ratesHistory = [];
 
-  // Загружаем курсы из IndexedDB
-  const ratesData = await getItem('adminRates2');
-  const rates = ratesData ? JSON.parse(ratesData) : defaultRates;
-
-  // Загружаем архив курсов (если есть)
-  const historyData = await getItem('adminRatesHistory');
-  let ratesHistory = historyData ? JSON.parse(historyData) : [];
-  if (!ratesHistory) {
-    ratesHistory = [];
+function getUserRole() {
+  // Предполагается, что роль пользователя доступна через глобальную переменную window.currentUserRole
+  // или через cookie. Здесь пример с глобальной переменной.
+  if (window.currentUserRole) {
+    return window.currentUserRole.toLowerCase();
   }
-  // Если архив пуст, добавляем текущие курсы в архив
+  // Если нужно, можно добавить чтение из cookie
+  return null;
+}
+
+async function fetchRates() {
+  try {
+    const response = await fetch('/api/rates');
+    if (!response.ok) throw new Error('Failed to fetch rates');
+    const data = await response.json();
+    return data;
+  } catch (err) {
+    showToast('Ошибка загрузки курсов', 'error');
+    return null;
+  }
+}
+
+async function fetchRatesHistory() {
+  try {
+    const response = await fetch('/api/rates/history');
+    if (!response.ok) throw new Error('Failed to fetch rates history');
+    const data = await response.json();
+    return data;
+  } catch (err) {
+    showToast('Ошибка загрузки архива курсов', 'error');
+    return [];
+  }
+}
+
+async function saveRates(newRates) {
+  try {
+    const response = await fetch('/api/rates', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(newRates)
+    });
+    if (!response.ok) throw new Error('Failed to save rates');
+    return true;
+  } catch (err) {
+    showToast('Ошибка сохранения курсов', 'error');
+    return false;
+  }
+}
+
+async function addRatesHistoryEntry(entry) {
+  try {
+    const response = await fetch('/api/rates/history', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(entry)
+    });
+    if (!response.ok) throw new Error('Failed to add rates history entry');
+    return true;
+  } catch (err) {
+    showToast('Ошибка сохранения в архив курсов', 'error');
+    return false;
+  }
+}
+
+export async function renderRatesPage() {
+  const userRole = getUserRole();
+  const isAdmin = userRole === 'admin';
+
+  rates = await fetchRates();
+  if (!rates) {
+    // Если не удалось загрузить курсы, используем дефолтные
+    rates = {
+      RUB: { cb: 1, agent: 1 },
+      USD: { cb: 76, agent: 88 },
+      EUR: { cb: 80, agent: 94 },
+      AED: { cb: 20, agent: 22 },
+      CNY: { cb: 12, agent: 14 },
+      GBP: { cb: 115, agent: 122 }
+    };
+  }
+
+  ratesHistory = await fetchRatesHistory();
+
+  // Если архив пуст, добавляем текущие курсы в архив на выбранную дату
   if (ratesHistory.length === 0) {
-    ratesHistory.push({
-      date: new Date().toLocaleString(),
+    const added = await addRatesHistoryEntry({
+      date: selectedDate,
       rates: { ...rates }
     });
-    await setItem('adminRatesHistory', JSON.stringify(ratesHistory));
-  }
-  // Если курсы не загружены, используем дефолтные
-  if (!rates) {
-    rates = defaultRates;
+    if (added) {
+      ratesHistory.push({
+        date: selectedDate,
+        rates: { ...rates }
+      });
+    }
   }
 
-  // Загружаем текущего пользователя (проверка isAdmin)
-  const currentUserData = await getItem('currentUser');
-  const currentUser = currentUserData ? JSON.parse(currentUserData) : {};
-  const isAdmin = (currentUser.role === 'admin');
+  // Создаем карту архивов по дате
+  let archiveByDate = {};
+  ratesHistory.forEach(item => {
+    if (item.date) archiveByDate[item.date] = item.rates;
+  });
 
   const details = document.querySelector('.details');
   details.style.background = 'rgba(255,255,255,1)';
 
   let html = `<h1>Курсы валют</h1>`;
 
+  // ---- Выбор и отображение даты ----
+  let dateSelector = '';
+  if (isAdmin) {
+    dateSelector = `<input type="date" id="ratesDateInput" value="${selectedDate}" style="font-size:1.1rem;padding:4px 8px;border-radius:6px;border:1px solid #c5dcf7;margin-left:10px;">`;
+  } else {
+    dateSelector = `<span style="margin-left:10px;font-size:1.1rem;color:#0057ff;">${selectedDate}</span>`;
+  }
+  html += `<div style="margin-bottom:12px;"><b>Курсы валют на ${selectedDate}</b> ${isAdmin ? ' (выберите дату):' : ''} ${dateSelector}</div>`;
+
+  // ---- Отрисовка таблицы ----
   if (!isAdmin) {
     html += `
       <table class="rates-table">
@@ -87,7 +165,7 @@ export async function renderRatesPage() {
     `;
   }
 
-  // Если админ, показываем форму редактирования
+  // ---- Для админа: форма редактирования ----
   if (isAdmin) {
     html += `
       <h3>Редактировать курсы (1 Валюта = X RUB)</h3>
@@ -139,26 +217,35 @@ export async function renderRatesPage() {
       });
       html += `</ul>`;
     }
-    // Кнопка для скачивания архива
     html += `<button id="downloadArchiveBtn" class="button" style="margin-top:10px;">Скачать архив</button>`;
   }
 
   details.innerHTML = html;
 
-  // Если админ, навешиваем обработчик для формы редактирования
+  // ---- Обработчик выбора даты (только для админа) ----
+  if (isAdmin) {
+    const dateInput = document.getElementById('ratesDateInput');
+    if (dateInput) {
+      dateInput.addEventListener('change', async (e) => {
+        selectedDate = e.target.value;
+        // При смене даты можно обновить архив или курсы, если нужно
+        await renderRatesPage();
+      });
+    }
+  }
+
+  // ---- Обработчик формы редактирования (только для админа) ----
   if (isAdmin) {
     const ratesEditForm = document.getElementById('ratesEditForm');
     ratesEditForm.addEventListener('submit', async (e) => {
       e.preventDefault();
 
       // Архивируем текущие курсы
-      const historyData = await getItem('adminRatesHistory');
-      let ratesHistory = historyData ? JSON.parse(historyData) : [];
-      ratesHistory.push({
-        date: new Date().toLocaleString(),
+      const added = await addRatesHistoryEntry({
+        date: selectedDate,
         rates: { ...rates }
       });
-      await setItem('adminRatesHistory', JSON.stringify(ratesHistory));
+      if (!added) return;
 
       // Собираем новые значения из формы
       const fd = new FormData(ratesEditForm);
@@ -172,9 +259,11 @@ export async function renderRatesPage() {
       }
 
       // Сохраняем обновлённые курсы
-      await setItem('adminRates2', JSON.stringify(rates));
-      showToast('Курсы валют обновлены!', 'success');
-      renderRatesPage();
+      const saved = await saveRates(rates);
+      if (saved) {
+        showToast('Курсы валют обновлены!', 'success');
+        await renderRatesPage();
+      }
     });
 
     const downloadBtn = document.getElementById('downloadArchiveBtn');
@@ -190,6 +279,7 @@ export async function renderRatesPage() {
     });
   }
 }
+
 const style = document.createElement('style');
 style.textContent = `
   .flag-icon {

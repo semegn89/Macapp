@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <title>Подтверждение почты — EUROPAY</title>
+</head>
+<body>
+  <h1>Подтверждение почты</h1>
+  <div id="result">Проверяем...</div>
+  <script>
+    const params = new URLSearchParams(location.search);
+    const token = params.get('token');
+    fetch(`https://eurpay.onrender.com/api/auth/verify?token=${token}`)
+      .then(r => r.text())
+      .then(text => {
+        document.getElementById('result').textContent = text;
+      })
+      .catch(e => {
+        document.getElementById('result').textContent = 'Ошибка проверки. Попробуйте позже.';
+      });
+  </script>
+</body>
+</html>

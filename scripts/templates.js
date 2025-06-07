@@ -3,8 +3,7 @@ import { showToast, showPreview } from './utils.js';
 
 export async function renderTemplatesPage(){
     const details=document.querySelector('.details');
-    const currentUser=JSON.parse(localStorage.getItem('currentUser'))||{};
-    const isAdmin=(currentUser.role==='admin');
+    const isAdmin=(window.currentUser?.role==='admin');
 
     details.innerHTML=`
       <h1>Шаблоны документов</h1>
@@ -18,22 +17,77 @@ export async function renderTemplatesPage(){
     const addCompanyBtn=details.querySelector('#addCompanyBtn');
     const companiesContainer=details.querySelector('#companiesContainer');
 
-    // Список компаний (карточек) без ID 
-    let companies=JSON.parse(localStorage.getItem('templatesCompanies'))||[
-      {id:'romashka', name:'ООО Ромашка'},
-      {id:'vasilek', name:'ООО Василёк'}
-    ];
-
-    if(isAdmin && addCompanyBtn){
-      addCompanyBtn.addEventListener('click',()=>{
-      const name=prompt('Введите название новой компании (карточки), напр. ООО ЛЮТИК');
-      if(!name)return;
-      const cid = 'comp-'+Date.now();
-      companies.push({id:cid, name});
-      localStorage.setItem('templatesCompanies', JSON.stringify(companies));
-      showToast(`Компания «${name}» добавлена!`,'success');
-      renderCompanyCards();
-      });
+    // Серверные функции API
+    async function fetchCompanies() {
+      try {
+        const res = await fetch('/api/templates/companies');
+        if (!res.ok) throw new Error();
+        return await res.json();
+      } catch {
+        showToast('Ошибка','error');
+        return [];
+      }
+    }
+    async function addCompanyApi(name) {
+      try {
+        const res = await fetch('/api/templates/companies', {
+          method: 'POST',
+          headers: {'Content-Type':'application/json'},
+          body: JSON.stringify({name}),
+        });
+        if (!res.ok) throw new Error();
+        return await res.json();
+      } catch {
+        showToast('Ошибка','error');
+        return null;
+      }
+    }
+    async function deleteCompanyApi(id) {
+      try {
+        const res = await fetch(`/api/templates/companies/${encodeURIComponent(id)}`, {
+          method: 'DELETE'
+        });
+        if (!res.ok) throw new Error();
+        return true;
+      } catch {
+        showToast('Ошибка','error');
+        return false;
+      }
+    }
+    async function fetchTemplates(companyId) {
+      try {
+        const res = await fetch(`/api/templates/${encodeURIComponent(companyId)}`);
+        if (!res.ok) throw new Error();
+        return await res.json();
+      } catch {
+        showToast('Ошибка','error');
+        return [];
+      }
+    }
+    async function addTemplateApi(companyId, formData) {
+      try {
+        const res = await fetch(`/api/templates/${encodeURIComponent(companyId)}`, {
+          method: 'POST',
+          body: formData
+        });
+        if (!res.ok) throw new Error();
+        return await res.json();
+      } catch {
+        showToast('Ошибка','error');
+        return null;
+      }
+    }
+    async function deleteTemplateApi(companyId, tmplId) {
+      try {
+        const res = await fetch(`/api/templates/${encodeURIComponent(companyId)}/${encodeURIComponent(tmplId)}`, {
+          method: 'DELETE'
+        });
+        if (!res.ok) throw new Error();
+        return true;
+      } catch {
+        showToast('Ошибка','error');
+        return false;
+      }
     }
     // функция для отображения шалонов карточек компаний в шаблонах и их изменения для админа
     function showAdminChatDetail(email){
@@ -73,67 +127,27 @@ export async function renderTemplatesPage(){
       }
     }  
 
-    function renderChatCards(searchTerm = '') {
-      chatCardsContainer.innerHTML = '';
-      let filtered = userEmails;
-      if (searchTerm) {
-        filtered = userEmails.filter(em => em.toLowerCase().includes(searchTerm));
-      }
-      if (!filtered.length) {
-        chatCardsContainer.innerHTML = '<p>Нет чатов с таким запросом.</p>';
-        return;
-      }
-    
-      filtered.forEach(email => {
-        const chatArr = allChats[email] || [];
-        const hasUnread = chatArr.some(m => m.from === 'user' && !m.readByAdmin);
-    
-        const card = document.createElement('div');
-        card.style.width = '100%'; // Устанавливаем ширину карточки
-        card.style.border = '1px solid #ccc';
-        card.style.borderRadius = '8px';
-        card.style.padding = '10px';
-        card.style.display = 'flex';
-        card.style.flexDirection = 'column'; // Делаем карточку вертикальной
-        card.style.justifyContent = 'space-between';
-        card.style.marginBottom = '20px'; // Добавляем отступ между карточками
-    
-        card.innerHTML = `
-          <div>
-            <h4 style="margin-bottom:5px;">${email}</h4>
-            ${
-              hasUnread
-                ? `<p style="color:red;">Непрочитанные сообщения</p>`
-                : `<p style="color:green;">Все прочитано</p>`
-            }
-          </div>
-          <button class="openChatBtn button button-sm">Открыть чат</button>
-        `;
-        card.querySelector('.openChatBtn').addEventListener('click', () => {
-          showAdminChatDetail(email);
-        });
-        chatCardsContainer.appendChild(card);
-      });
-    
-      if(isAdmin){
-        companiesContainer.querySelectorAll('.delCompanyBtn').forEach(btn=>{
-          btn.addEventListener('click', function(){
-            const cid = this.getAttribute('data-id');
-            const idx = companies.findIndex(x => x.id===cid);
-            if(idx!==-1){
-              if(confirm('Удалить эту карточку компании?')){
-                companies.splice(idx,1);
-                localStorage.setItem('templatesCompanies', JSON.stringify(companies));
-                renderCompanyCards();
-              }
-            }
-          });
-        });
-      }
+    // Основная логика загрузки компаний
+    let companies = [];
+    async function updateCompaniesAndRender() {
+      companies = await fetchCompanies();
+      renderCompanyCards();
     }
-    renderCompanyCards();
+
+    if(isAdmin && addCompanyBtn){
+      addCompanyBtn.addEventListener('click', async ()=>{
+        const name=prompt('Введите название новой компании (карточки), напр. ООО ЛЮТИК');
+        if(!name)return;
+        const res = await addCompanyApi(name);
+        if(res){
+          showToast(`Компания «${name}» добавлена!`,'success');
+          await updateCompaniesAndRender();
+        }
+      });
+    }
+
     // Функция для отображения карточек компаний
-    function renderCompanyCards(searchTerm = '') {
+    async function renderCompanyCards(searchTerm = '') {
       companiesContainer.innerHTML = '';
       let filtered = companies;
       if (searchTerm) {
@@ -143,177 +157,170 @@ export async function renderTemplatesPage(){
         companiesContainer.innerHTML = '<p>Нет компаний с таким запросом.</p>';
         return;
       }
+      const grid = document.createElement('div');
+      grid.className = 'templates-grid';
+
       filtered.forEach(comp => {
         const card = document.createElement('div');
-        card.className = 'company-card'; // Применяем класс вместо инлайн-стилей
+        card.className = 'template-card';
         card.innerHTML = `
-          <h3 style="margin-bottom:5px;">${comp.name}</h3>
-          <button class="viewTmplBtn button button-sm" data-id="${comp.id}">Просмотреть шаблоны</button>
-          ${
-            isAdmin ? `<button class="delCompanyBtn button button-sm button-outline" data-id="${comp.id}" style="margin-left:5px;">Удалить</button>` : ''
-          }
+          <div class="template-card-title">${comp.name}</div>
+          <div class="template-card-btns">
+            <button class="viewTmplBtn button button-sm" data-id="${comp.id}">Просмотреть шаблоны</button>
+            ${
+              isAdmin
+                ? `<button class="delCompanyBtn button button-sm button-outline" data-id="${comp.id}">Удалить</button>`
+                : ''
+            }
+          </div>
         `;
         card.querySelector('.viewTmplBtn').addEventListener('click', function () {
-          const cid = this.getAttribute('data-id');
-          const found = companies.find(x => x.id === cid);
-          if (!found) return;
-          showCompanyTemplates(found.id, found.name);
+          showCompanyTemplates(comp.id, comp.name);
         });
-        companiesContainer.appendChild(card);
-      });
-      if(isAdmin){
-        companiesContainer.querySelectorAll('.delCompanyBtn').forEach(btn=>{
-          btn.addEventListener('click', function(){
+        if(isAdmin){
+          card.querySelector('.delCompanyBtn')?.addEventListener('click', async function(){
             const cid = this.getAttribute('data-id');
-            const idx = companies.findIndex(x => x.id===cid);
-            if(idx!==-1){
-              if(confirm('Удалить эту карточку компании?')){
-                companies.splice(idx,1);
-                localStorage.setItem('templatesCompanies', JSON.stringify(companies));
-                renderCompanyCards();
+            if(confirm('Удалить эту карточку компании?')){
+              const ok = await deleteCompanyApi(cid);
+              if(ok){
+                showToast('Компания удалена!','info');
+                await updateCompaniesAndRender();
               }
             }
           });
-        });
-      }
-    }
-    // Функция для отображения шаблонов компании 
-
-    function showCompanyTemplates(companyId, companyName){
-      details.innerHTML=`
-        <h1>Шаблоны для ${companyName}</h1>
-        ${
-          isAdmin ? `<button id="addTmplBtn" class="button">Добавить шаблон</button>` : ''
         }
-        <div id="tmplList" style="margin-top:20px; display: flex; flex-wrap: wrap; gap: 20px;"></div>
-        <div id="tmplForm" style="display:none; margin-top:20px;">
-          <form id="newTemplateForm">
-        <div class="form-row">
-          <label>Название шаблона:</label>
-          <input type="text" name="name" required>
-        </div>
-        <div class="form-row">
-          <label>Файл шаблона:</label>
-          <input type="file" name="file" required>
-        </div>
-        <button type="submit" class="button">Сохранить</button>
-        <button type="button" id="cancelTmpl" class="button button-outline" style="margin-left:10px;">Отмена</button>
-          </form>
-        </div>
-      `;
-      const tmplList=details.querySelector('#tmplList');
-      const tmplForm=details.querySelector('#tmplForm');
-      const newTemplateForm=details.querySelector('#newTemplateForm');
-      const cancelTmpl=details.querySelector('#cancelTmpl');
-      const addTmplBtn=details.querySelector('#addTmplBtn');
+        grid.appendChild(card);
+      });
+      companiesContainer.appendChild(grid);
+    }
 
-      let allTemplates=JSON.parse(localStorage.getItem('templates'))||{};
-      if(!allTemplates[companyId]){
-        allTemplates[companyId]=[];
+    // Функция для отображения шаблонов компании 
+    async function showCompanyTemplates(companyId, companyName){
+      details.innerHTML = `
+        <div class="tmpls-inner-header">
+          <span class="tmpls-title">Шаблоны для ${companyName}</span>
+          ${
+            isAdmin
+              ? `<button id="tmplAddBtn" class="tmpls-add-btn">+ Добавить шаблон</button>`
+              : ''
+          }
+          <button id="tmplBackBtn" class="button button-outline" style="margin-left:auto;">Назад</button>
+        </div>
+        <div id="tmplList" class="tmpls-list"></div>
+      `;
+      const tmplList = details.querySelector('#tmplList');
+      const tmplAddBtn = details.querySelector('#tmplAddBtn');
+      const tmplBackBtn = details.querySelector('#tmplBackBtn');
+
+      let allTemplates = await fetchTemplates(companyId);
+
+      function getFileIcon(fileName) {
+        const ext = fileName.split('.').pop().toLowerCase();
+        if (ext === 'pdf') return `<span class="tmpls-icon">📄</span>`;
+        if (['doc','docx'].includes(ext)) return `<span class="tmpls-icon">📝</span>`;
+        if (['xls','xlsx'].includes(ext)) return `<span class="tmpls-icon">📊</span>`;
+        if (['png','jpg','jpeg'].includes(ext)) return `<span class="tmpls-icon">🖼️</span>`;
+        return `<span class="tmpls-icon">📁</span>`;
       }
 
-      function renderTmplList(){
-        const arr=allTemplates[companyId];
-        if(!arr.length){
-          tmplList.innerHTML='<p>Нет шаблонов для данной компании.</p>';
+      async function renderTmplList(){
+        allTemplates = await fetchTemplates(companyId);
+        tmplList.innerHTML = '';
+        if(!allTemplates.length){
+          tmplList.innerHTML = '<div class="tmpls-empty">Нет шаблонов для данной компании.</div>';
           return;
         }
-        let html='<ul>';
-        arr.forEach(tmpl=>{
-          html+=`
-            <li style="margin-bottom:6px;">
-              <strong>${tmpl.name}</strong> (${tmpl.fileName})
-              <div>
-                <button class="prevTmplBtn button button-sm" data-id="${tmpl.id}">Просмотр</button>
-                <a href="${tmpl.data}" download="${tmpl.fileName}" class="button button-sm">Скачать</a>
-                ${isAdmin? `<button class="delTmplBtn button button-sm button-outline" data-id="${tmpl.id}" style="margin-left:5px;">Удалить</button>`:''}
-              </div>
-            </li>
+        allTemplates.forEach(tmpl => {
+          const card = document.createElement('div');
+          card.className = 'tmpls-card';
+          card.innerHTML = `
+            ${getFileIcon(tmpl.fileName)}
+            <div class="tmpl-name">${tmpl.name}</div>
+            <div class="tmpl-filename">${tmpl.fileName}</div>
+            <div class="tmpl-actions">
+              <button class="prevTmplBtn button button-sm" data-id="${tmpl.id}">Просмотр</button>
+              <a href="/api/templates/${encodeURIComponent(companyId)}/${encodeURIComponent(tmpl.id)}/download" download="${tmpl.fileName}" class="button button-sm">Скачать</a>
+              ${isAdmin? `<button class="delTmplBtn button button-sm button-outline" data-id="${tmpl.id}">Удалить</button>` : ''}
+            </div>
           `;
-        });
-        html+='</ul>';
-        tmplList.innerHTML=html;
-
-        tmplList.querySelectorAll('.prevTmplBtn').forEach(btn=>{
-          btn.addEventListener('click',function(){
-            const tid=+this.getAttribute('data-id');
-            const arr=allTemplates[companyId];
-            const found=arr.find(x=>x.id===tid);
-            if(!found)return;
-            if(found.fileName.toLowerCase().endsWith('.pdf')){
-              showPreview(`<iframe src="${found.data}" width="100%" height="600px"></iframe>`);
-            } else if(/\.(png|jpe?g)$/i.test(found.fileName)){
-              showPreview(`<img src="${found.data}" style="max-width:100%;height:auto;" />`);
-            } else {
-              showPreview(`<p>Невозможно отобразить "${found.fileName}". Попробуйте скачать.</p>`);
+          card.querySelector('.prevTmplBtn').onclick = async () => {
+            // Для предпросмотра попробуем получить blob с сервера и показать
+            try {
+              const res = await fetch(`/api/templates/${encodeURIComponent(companyId)}/${encodeURIComponent(tmpl.id)}/download`);
+              if (!res.ok) throw new Error();
+              const blob = await res.blob();
+              const url = URL.createObjectURL(blob);
+              if(tmpl.fileName.toLowerCase().endsWith('.pdf')){
+                showPreview(`<iframe src="${url}" width="100%" height="600px"></iframe>`);
+              } else if(/\.(png|jpe?g)$/i.test(tmpl.fileName)){
+                showPreview(`<img src="${url}" style="max-width:100%;height:auto;" />`);
+              } else {
+                showPreview(`<p>Невозможно отобразить "${tmpl.fileName}". Попробуйте скачать.</p>`);
+              }
+            } catch {
+              showToast('Ошибка','error');
+            }
+          };
+          card.querySelector('.delTmplBtn')?.addEventListener('click',async ()=>{
+            if(confirm('Удалить этот шаблон?')){
+              const ok = await deleteTemplateApi(companyId, tmpl.id);
+              if(ok){
+                showToast('Шаблон удалён!','info');
+                await renderTmplList();
+              }
             }
           });
-        });
-        tmplList.querySelectorAll('.delTmplBtn').forEach(btn=>{
-          btn.addEventListener('click',function(){
-            const tid=+this.getAttribute('data-id');
-            const arr=allTemplates[companyId];
-            const i=arr.findIndex(x=>x.id===tid);
-            if(i!==-1){
-              arr.splice(i,1);
-              allTemplates[companyId]=arr;
-              localStorage.setItem('templates', JSON.stringify(allTemplates));
-              showToast('Шаблон удалён!','info');
-              renderTmplList();
-            }
-          });
+          tmplList.appendChild(card);
         });
       }
-      renderTmplList();
-      
 
-      if(addTmplBtn){
-        addTmplBtn.addEventListener('click',()=>{
-          if(!isAdmin){
-            showToast('Только админ может добавлять','error');
-            return;
-          }
-          tmplForm.style.display='block';
-        });
-      }
-      if(cancelTmpl){
-        cancelTmpl.addEventListener('click',()=>{
-          tmplForm.style.display='none';
-          newTemplateForm.reset();
-        });
-      }
-      if(newTemplateForm){
-        newTemplateForm.addEventListener('submit',(e)=>{
+      // Модалка добавления шаблона
+      function showAddModal(){
+        const bg = document.createElement('div');
+        bg.className = 'tmpls-modal-bg';
+        bg.innerHTML = `
+          <div class="tmpls-modal">
+            <form id="tmplModalForm" autocomplete="off">
+              <label>Название шаблона:</label>
+              <input type="text" name="name" required maxlength="80" autocomplete="off">
+              <label>Файл шаблона:</label>
+              <input type="file" name="file" required>
+              <div class="btns">
+                <button type="submit" class="button">Сохранить</button>
+                <button type="button" id="tmplCancelBtn" class="button button-outline">Отмена</button>
+              </div>
+            </form>
+          </div>
+        `;
+        document.body.appendChild(bg);
+        const modalForm = bg.querySelector('#tmplModalForm');
+        const cancelBtn = bg.querySelector('#tmplCancelBtn');
+        cancelBtn.onclick = () => document.body.removeChild(bg);
+
+        modalForm.onsubmit = async (e) => {
           e.preventDefault();
-          if(!isAdmin){
-            showToast('Только админ может добавлять','error');
-            return;
-          }
-          const fd=new FormData(newTemplateForm);
-          const name=fd.get('name');
-          const file=fd.get('file');
-          if(!file){
+          const fd = new FormData(modalForm);
+          if(!fd.get('file')){
             showToast('Не выбран файл','error');
             return;
           }
-          const reader=new FileReader();
-          reader.onload=function(ev){
-            const dataURL=ev.target.result;
-            const newTmpl={
-              id:Date.now(),
-              name,
-              fileName:file.name,
-              data:dataURL
-            };
-            allTemplates[companyId].push(newTmpl);
-            localStorage.setItem('templates', JSON.stringify(allTemplates));
+          const res = await addTemplateApi(companyId, fd);
+          if(res){
             showToast('Шаблон добавлен!','success');
-            tmplForm.style.display='none';
-            newTemplateForm.reset();
-            renderTmplList();
-          };
-          reader.readAsDataURL(file);
-        });
+            document.body.removeChild(bg);
+            await renderTmplList();
+          }
+        };
       }
+
+      if(isAdmin && tmplAddBtn){
+        tmplAddBtn.onclick = showAddModal;
+      }
+      tmplBackBtn.onclick = () => renderTemplatesPage();
+
+      await renderTmplList();
     }
-  }
+
+    // Первая загрузка компаний
+    await updateCompaniesAndRender();
+}

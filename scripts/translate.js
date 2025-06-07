@@ -8,7 +8,7 @@ const translations = {
       faq: "FAQ",
       contact: "Контакты",
       heroTitle: "Международные переводы быстро и безопасно",
-      heroDesc: "AgentAPP — ваш надежный платёжный агент в любой точке мира.",
+      heroDesc: "EUROPAY — ваш надежный платёжный агент в любой точке мира.",
       heroBtn1: "Подробнее",
       heroBtn2: "Начать сейчас"
     },
@@ -19,7 +19,7 @@ const translations = {
       faq: "FAQ",
       contact: "Contact",
       heroTitle: "Fast and Secure International Transfers",
-      heroDesc: "AgentAPP — your trusted payment agent worldwide.",
+      heroDesc: "EUROPAY — your trusted payment agent worldwide.",
       heroBtn1: "Learn More",
       heroBtn2: "Get Started"
     }

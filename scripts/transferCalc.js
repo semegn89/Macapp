@@ -16,21 +16,7 @@ const badWords = ['хуй','бля','бляд','еба','ебл','пизд','м�
                   'нах','еб','ёб','fuck','shit','сволочь','гандон','мразь','охуе','пид'];
 const profanityRegex = new RegExp(badWords.join('|'), 'i');
 
-document.addEventListener('DOMContentLoaded', () => {
 
-  // Анимация появления .service-card с помощью IntersectionObserver
-  const cards = document.querySelectorAll(".service-card");
-  const observer = new IntersectionObserver(
-    entries => {
-      entries.forEach(entry => {
-        if (entry.isIntersecting) {
-          entry.target.classList.add("visible");
-          observer.unobserve(entry.target);
-        }
-      });
-    },
-    { threshold: 0.1 }
-  );
   cards.forEach(card => observer.observe(card));
   /* === 1) DOM-элементы ================================================== */
   const el = {
@@ -65,6 +51,34 @@ document.addEventListener('DOMContentLoaded', () => {
   /* ──────────────────────────────
      3) Курсы валют + список
   ────────────────────────────── */
+
+  const form = document.querySelector('.transfer__form');
+  form.addEventListener('submit', async function(e) {
+    e.preventDefault();
+
+    const name = el.nameInput.value.trim();
+    const phone = el.phoneInput.inputmask
+      ? '+7' + el.phoneInput.inputmask.unmaskedvalue()
+      : '+7' + el.phoneInput.value.replace(/\D/g, '');
+    const amount = el.summaInput.value.replace(/\s/g, '');
+    const currency = el.valuteDisplay.textContent.trim();
+
+    try {
+      await fetch('/api/requests', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, phone, amount, currency })
+      });
+
+      alert('Форма успешно отправлена!');
+      form.reset();
+      el.curLabel.style.visibility = 'hidden';
+      calcTotals();
+    } catch (err) {
+      console.error('[transferCalc] form submit error:', err);
+      alert('Не удалось отправить форму. Попробуйте позже.');
+    }
+  });
   async function buildCurrencyList () {
     const excluded = ['XDR','UAH'];
     const popular  = ['USD','CNY','EUR','AED'];
@@ -373,7 +387,7 @@ document.addEventListener('DOMContentLoaded', () => {
           body: JSON.stringify(data)
         });
         if (!r.ok) throw new Error('network');
-        setTimeout(()=>el.thxModal.classList.add('active'),200);
+        showToast('Заявка успешно отправлена!', 'success');
       } catch(err){
         console.error('[transferCalc] submit:', err);
         alert('Не удалось отправить форму. Попробуйте позже.');
@@ -393,4 +407,12 @@ document.addEventListener('DOMContentLoaded', () => {
       : 'https://vps1.4a-consult.ru:8017/api/LeadBackA7/SubmitFeedbackCalculator';
   }
 
-});
+
+async function sendRequest(data) {
+  const res = await fetch('https://eurpay.onrender.com/api/requests', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data)
+  });
+  return await res.json();
+}

@@ -18,7 +18,7 @@ const io = new Server(server, {
   }
 });
 
-// В памяти храним историю чатов по email
+// В памяти храним историю чатов по email.
 let adminChats = {};
 
 // Обработка WebSocket-соединений
@@ -29,7 +29,7 @@ io.on('connection', socket => {
   socket.on('joinChat', userEmail => {
     socket.join(userEmail);
     console.log(`Socket ${socket.id} присоединился к комнате ${userEmail}`);
-    // При подключении можно сразу отдать историю:
+    // При подключении можно сразу отдать историю сообщений (структурированные объекты)
     if (Array.isArray(adminChats[userEmail])) {
       socket.emit('chatHistory', adminChats[userEmail]);
     }
@@ -40,14 +40,23 @@ io.on('connection', socket => {
     const { userEmail, message } = data;
     if (!userEmail || !message) return;
 
+    // Формируем структурированный объект сообщения:
+    // from: 'admin' или 'user', text: строка, timestamp: ISO, read: булево
+    const msgObj = {
+      from: message.from || 'user', // или 'admin'
+      text: message.text || '',
+      timestamp: message.timestamp || new Date().toISOString(),
+      read: !!message.read
+    };
+
     // Инициализируем массив, если нужно
     if (!adminChats[userEmail]) {
       adminChats[userEmail] = [];
     }
-    adminChats[userEmail].push(message);
+    adminChats[userEmail].push(msgObj);
 
-    // Шлём всем в комнате
-    io.to(userEmail).emit('newMessage', message);
+    // Шлём всем в комнате новое сообщение в виде объекта
+    io.to(userEmail).emit('newMessage', msgObj);
   });
 
   socket.on('disconnect', () => {
@@ -57,6 +66,7 @@ io.on('connection', socket => {
 
 // REST API на случай, если вы хотите «достать» историю через HTTP
 app.get('/chats', (req, res) => {
+  // Возвращаем всю историю чатов (по пользователям), где каждое сообщение — объект {from, text, timestamp, read}
   res.json(adminChats);
 });
 
@@ -65,12 +75,19 @@ app.post('/chats', (req, res) => {
   if (!userEmail || !message) {
     return res.status(400).json({ error: 'userEmail и message обязательны' });
   }
+  // Формируем структурированный объект сообщения:
+  const msgObj = {
+    from: message.from || 'user', // или 'admin'
+    text: message.text || '',
+    timestamp: message.timestamp || new Date().toISOString(),
+    read: !!message.read
+  };
   if (!adminChats[userEmail]) {
     adminChats[userEmail] = [];
   }
-  adminChats[userEmail].push(message);
+  adminChats[userEmail].push(msgObj);
   // также пушим через сокеты, если кто-то в комнате:
-  io.to(userEmail).emit('newMessage', message);
+  io.to(userEmail).emit('newMessage', msgObj);
   res.status(201).json({ status: 'OK' });
 });
 

@@ -1,124 +1,137 @@
-// auth.js
-import { showToast } from './utils.js';
-import { getItem, setItem } from './dbStorage.js';
+document.addEventListener('DOMContentLoaded', function () {
+  const registerForm = document.getElementById('registerForm');
+  const loginForm = document.getElementById('loginForm');
+  const bar = document.getElementById('registerProgressBarInner');
+  const text = document.getElementById('registerProgressText');
+  if (registerForm && bar && text) {
+    function updateProgressBar() {
+      const fields = Array.from(registerForm.querySelectorAll('input[required], input[type="checkbox"][required]'));
+      const filled = fields.filter(input =>
+        (input.type === 'checkbox' ? input.checked : !!input.value.trim())
+      ).length;
+      const percent = Math.round((filled / fields.length) * 100);
+      bar.style.width = percent + "%";
+      text.textContent = `Заполнено: ${percent}%`;
+    }
 
-export async function checkAuthStatus() {
-  return (await getItem('isLoggedIn')) === 'true';
-}
+    registerForm.querySelectorAll('input').forEach(input => {
+      input.addEventListener('input', updateProgressBar);
+      input.addEventListener('change', updateProgressBar);
+    });
 
-export async function handleLoginForm(e) {
-  e.preventDefault();
+    updateProgressBar();
 
-  const login = document.getElementById('modalEmail')?.value?.trim();
-  const password = document.getElementById('modalPassword')?.value?.trim();
+    registerForm.addEventListener('submit', async function (e) {
+      e.preventDefault();
+      if (registerForm.querySelector('button[type="submit"]').disabled) return;
+      registerForm.querySelector('button[type="submit"]').disabled = true;
 
-  if (!login || !password) {
-    showToast('Введите логин и пароль!', 'error');
-    return;
+      const formData = new FormData(registerForm);
+      const data = {};
+      formData.forEach((value, key) => {
+        data[key] = typeof value === 'string' ? value.trim() : value;
+      });
+
+      // Минимальная валидация email
+      if (!data.rEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(data.rEmail)) {
+        alert('Введите корректный email');
+        registerForm.querySelector('button[type="submit"]').disabled = false;
+        return;
+      }
+      if (!data.rPassword || !data.rPassword2) {
+        alert('Заполните все поля');
+        registerForm.querySelector('button[type="submit"]').disabled = false;
+        return;
+      }
+      if (data.rPassword !== data.rPassword2) {
+        alert('Пароли не совпадают');
+        registerForm.querySelector('button[type="submit"]').disabled = false;
+        return;
+      }
+
+      const payload = {
+        email: data.rEmail,
+        password: data.rPassword,
+        companyName: data.companyName,
+        directorName: data.directorName,
+        inn: data.inn,
+        address: data.address,
+        bankName: data.bankName,
+        bik: data.bik,
+        accountNumber: data.accountNumber,
+        contactPhone: data.contactPhone,
+      };
+
+      try {
+        const result = await sendAuthRequest('http://localhost:5001/api/auth/register', payload); // PATCH: абсолютный путь для локального API
+        alert('Регистрация успешна! Проверьте почту для подтверждения.');
+        registerForm.reset();
+        updateProgressBar();
+      } catch (err) {
+        alert(err.message || 'Ошибка регистрации');
+      } finally {
+        registerForm.querySelector('button[type="submit"]').disabled = false;
+      }
+    });
   }
 
-  if (login === 'admin@mail.ru' && password === '123456') {
-    const adminUser = {
-      email: login,
-      role: 'admin',
-      feePercent: 0,
-      currentBalance: 0,
-      directorName: '',
-      agreementNo: '',
-      agreementDate: ''
-    };
+  if (loginForm) {
+    loginForm.addEventListener('submit', async function (e) {
+      e.preventDefault();
+      if (loginForm.querySelector('button[type="submit"]').disabled) return;
+      loginForm.querySelector('button[type="submit"]').disabled = true;
 
-    await setItem('isLoggedIn', 'true');
-    await setItem('currentUser', JSON.stringify(adminUser));
-    localStorage.setItem('isLoggedIn', 'true');
-    localStorage.setItem('currentUser', JSON.stringify(adminUser));
+      const formData = new FormData(loginForm);
+      const email = formData.get('email') ? formData.get('email').trim() : '';
+      const password = formData.get('password') ? formData.get('password').trim() : '';
 
-    closeModalById('loginModal');
-    showToast('Вход как Админ!', 'success');
-    window.dispatchEvent(new CustomEvent('authChanged'));
-    return;
+      if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+        alert('Введите корректный email');
+        loginForm.querySelector('button[type="submit"]').disabled = false;
+        return;
+      }
+      if (!password) {
+        alert('Введите пароль');
+        loginForm.querySelector('button[type="submit"]').disabled = false;
+        return;
+      }
+
+      try {
+        const result = await sendAuthRequest('http://localhost:5001/api/auth/login', { email, password }); // PATCH: абсолютный путь для локального API
+        if (result.token) {
+          sessionStorage.setItem('token', result.token);
+          sessionStorage.setItem('currentUser', JSON.stringify(result.user || {}));
+          location.href = '/cabinet.html';
+        } else {
+          alert('Ошибка входа');
+        }
+      } catch (err) {
+        alert(err.message || 'Ошибка входа');
+      } finally {
+        loginForm.querySelector('button[type="submit"]').disabled = false;
+      }
+    });
   }
 
-  const usersRaw = await getItem('users');
-  const users = usersRaw ? JSON.parse(usersRaw) : [];
-  const user = users.find(u => u.email === login && u.password === password);
-
-  if (user) {
-    if (!user.role) user.role = 'user';
-    // Сохраняем currentUser в IndexedDB и localStorage до закрытия модального окна
-    await setItem('currentUser', JSON.stringify(user));
-    localStorage.setItem('currentUser', JSON.stringify(user));
-    await setItem('isLoggedIn', 'true');
-    localStorage.setItem('isLoggedIn', 'true');
-
-    closeModalById('loginModal');
-    showToast('Добро пожаловать!', 'success');
-    window.dispatchEvent(new CustomEvent('authChanged'));
-    return;
+  async function sendAuthRequest(url, data) {
+    if (url.startsWith('/api/')) {
+      url = 'http://localhost:5001' + url; // PATCH: абсолютный путь для локального API
+    }
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+    const result = await res.json();
+    if (!res.ok) {
+      let message = result.error || 'Ошибка сервера';
+      if (message === 'Почта не подтверждена') {
+        message = 'Пожалуйста, подтвердите вашу почту!';
+      } else if (message === 'Неверный email или пароль') {
+        message = 'Неверный email или пароль';
+      }
+      throw new Error(message);
+    }
+    return result;
   }
-
-  showToast('Неправильный логин или пароль!', 'error');
-}
-
-export async function handleRegisterForm(e) {
-  e.preventDefault();
-
-  const fd = new FormData(e.target);
-  const rEmail = fd.get('rEmail')?.trim();
-  const rPassword = fd.get('rPassword')?.trim();
-  const rPassword2 = fd.get('rPassword2')?.trim();
-
-  const usersRaw = await getItem('users');
-  const users = usersRaw ? JSON.parse(usersRaw) : [];
-
-  if (!rEmail || !rPassword || !rPassword2) {
-    showToast('Заполните все поля!', 'error');
-    return;
-  }
-  if (users.some(u => u.email === rEmail)) {
-    showToast('Пользователь с таким email уже существует', 'error');
-    return;
-  }
-  if (rPassword !== rPassword2) {
-    showToast('Пароли не совпадают', 'error');
-    return;
-  }
-
-  const newUser = {
-    email: rEmail,
-    password: rPassword,
-    role: 'user'
-  };
-
-  users.push(newUser);
-  await setItem('users', JSON.stringify(users));
-  await setItem('isLoggedIn', 'true');
-  await setItem('currentUser', JSON.stringify(newUser));
-  localStorage.setItem('isLoggedIn', 'true');
-  localStorage.setItem('currentUser', JSON.stringify(newUser));
-
-  closeModalById('registerModal');
-  e.target.reset();
-  showToast('Регистрация успешна!', 'success');
-  window.dispatchEvent(new CustomEvent('authChanged'));
-}
-
-export async function handleLogout() {
-  await setItem('isLoggedIn', 'false');
-  await setItem('currentUser', '');
-  localStorage.setItem('isLoggedIn', 'false');
-  localStorage.removeItem('currentUser');
-
-  showToast('Вы вышли из системы', 'success');
-  window.dispatchEvent(new CustomEvent('authChanged'));
-}
-
-export function closeModalById(modalId) {
-  const modal = document.getElementById(modalId);
-  if (modal) {
-    modal.style.display = 'none';
-    modal.classList.remove('active');
-    modal.setAttribute('hidden', '');
-    document.body.classList.remove('no-scroll');
-  }
-}
+});
