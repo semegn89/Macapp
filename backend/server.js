@@ -36,6 +36,10 @@ app.use('/api/rates', require('./routes/ratesRoutes'));
 app.use('/api/users', require('./routes/usersRoutes'));
 app.use('/api/documents', require('./routes/docsRoutes'));
 app.use('/api/admin', require('./routes/adminRoutes'));
+app.use('/api/history', require('./routes/historyRoutes')); // если есть
+app.use('/api/companies', require('./routes/companiesRoutes')); // если нужен companies
+app.use('/api/templates', require('./routes/templatesRoutes')); // если нужен templates
+app.use('/api/admin/chats', require('./routes/adminChatsRoutes')); // если нужен чат
 
 app.get('/', (req, res) => res.json({ message: 'API is running' }));
 
