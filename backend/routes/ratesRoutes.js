@@ -14,4 +14,4 @@ router.post('/', (req, res) => {
   res.json({ success: true, message: 'Курсы обновлены', rates: currentRates });
 });
 
-module.exports = router; // <-- только так!
+module.exports = router;
