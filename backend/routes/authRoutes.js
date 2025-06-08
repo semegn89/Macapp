@@ -42,6 +42,9 @@ router.post('/register', async (req, res) => {
       return res.status(400).json({ error: 'Пользователь уже существует' });
     }
 
+    console.log('>>> Запрос регистрации:', req.body);
+    console.log('>>> FRONTEND_URL:', process.env.FRONTEND_URL);
+
     const hash = await bcrypt.hash(password, 10);
     const user = new User({ email, password: hash, ...profile, isVerified: false });
     await user.save();
@@ -56,8 +59,9 @@ router.post('/register', async (req, res) => {
         subject: 'Подтвердите ваш email в EUROPAY',
         html: `<b>Спасибо за регистрацию!</b><br>Пожалуйста, подтвердите свой e-mail:<br><a href="${link}">${link}</a>`
       });
+      console.log('>>> Письмо успешно отправлено на', email, 'с ссылкой:', link);
     } catch (mailErr) {
-      console.error('Ошибка отправки письма', email, mailErr);
+      console.error('>>> Ошибка отправки письма:', mailErr);
       return res.status(500).json({ error: 'Ошибка при отправке письма. Попробуйте позже.' });
     }
 
