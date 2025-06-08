@@ -25,11 +25,11 @@ console.log('process.env.MONGODB_URI:', process.env.MONGODB_URI);
 console.log('======= DIAGNOSTICS END ========');
 // ===== DIAGNOSTICS LOGS (end)
 
-app.use('/api/auth', require('./routes/authRoutes'));
-app.use('/api/requests', require('./routes/requestRoutes'));
 app.use('/api/payments', require('./routes/paymentsRoutes'));
+app.use('/api/rates', require('./routes/ratesRoutes'));
 app.use('/api/users', require('./routes/usersRoutes'));
-app.use('/api/docs', require('./routes/docsRoutes'));
+app.use('/api/documents', require('./routes/docsRoutes'));
+app.use('/api/admin', require('./routes/adminRoutes'));
 
 app.get('/', (req, res) => res.json({ message: 'API is running' }));
 
