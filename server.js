@@ -7,6 +7,19 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
+// ===== DIAGNOSTICS LOGS (start)
+console.log('======= DIAGNOSTICS START =======');
+console.log('process.env.PORT:', process.env.PORT);
+console.log('process.env.BACKEND_URL:', process.env.BACKEND_URL);
+console.log('process.env.FRONTEND_URL:', process.env.FRONTEND_URL);
+console.log('process.env.SMTP_HOST:', process.env.SMTP_HOST);
+console.log('process.env.SMTP_USER:', process.env.SMTP_USER);
+console.log('process.env.MAIL_FROM:', process.env.MAIL_FROM);
+console.log('process.env.NODE_ENV:', process.env.NODE_ENV);
+console.log('process.env.MONGODB_URI:', process.env.MONGODB_URI);
+console.log('======= DIAGNOSTICS END ========');
+// ===== DIAGNOSTICS LOGS (end)
+
 app.use('/api/auth', require('./routes/authRoutes'));
 app.use('/api/requests', require('./routes/requestRoutes'));
 app.use('/api/payments', require('./routes/paymentsRoutes'));
@@ -17,5 +30,10 @@ app.get('/', (req, res) => res.json({ message: 'API is running' }));
 
 const PORT = process.env.PORT || 5001;
 mongoose.connect(process.env.MONGODB_URI, { useNewUrlParser: true, useUnifiedTopology: true })
-  .then(() => app.listen(PORT, () => console.log(`Server started on port ${PORT}`)))
+  .then(() => {
+    app.listen(PORT, () => {
+      console.log(`🚀 Server running on port ${PORT}`);
+      console.log('Фронтенд будет искать verify.html тут:', process.env.FRONTEND_URL);
+    });
+  })
   .catch((err) => console.error('MongoDB connect error', err));
