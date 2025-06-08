@@ -32,9 +32,15 @@ function authAdmin(req, res, next) {
 router.post('/register', async (req, res) => {
   try {
     const { email, password, ...profile } = req.body;
-    if (!email || !password) return res.status(400).json({ error: 'Email и пароль обязательны' });
+    if (!email || !password) {
+      console.error('Регистрация: не указан email или пароль');
+      return res.status(400).json({ error: 'Email и пароль обязательны' });
+    }
     const exist = await User.findOne({ email });
-    if (exist) return res.status(400).json({ error: 'Пользователь уже существует' });
+    if (exist) {
+      console.error('Регистрация: дубль email', email);
+      return res.status(400).json({ error: 'Пользователь уже существует' });
+    }
 
     const hash = await bcrypt.hash(password, 10);
     const user = new User({ email, password: hash, ...profile, isVerified: false });
@@ -42,15 +48,23 @@ router.post('/register', async (req, res) => {
 
     const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET || 'jwtsecret', { expiresIn: '1d' });
     const link = `${frontendUrl}/verify.html?token=${token}`;
-    await sendMail({
-      to: email,
-      subject: 'Подтвердите ваш email в EUROPAY',
-      html: `<b>Спасибо за регистрацию!</b><br>Пожалуйста, подтвердите свой e-mail:<br><a href="${link}">${link}</a>`
-    });
+    console.log('Регистрация: отправляю письмо на', email, 'с ссылкой:', link);
+
+    try {
+      await sendMail({
+        to: email,
+        subject: 'Подтвердите ваш email в EUROPAY',
+        html: `<b>Спасибо за регистрацию!</b><br>Пожалуйста, подтвердите свой e-mail:<br><a href="${link}">${link}</a>`
+      });
+    } catch (mailErr) {
+      console.error('Ошибка отправки письма', email, mailErr);
+      return res.status(500).json({ error: 'Ошибка при отправке письма. Попробуйте позже.' });
+    }
 
     res.json({ success: true, message: 'Письмо для подтверждения отправлено на почту' });
   } catch (e) {
-    console.error(e);
+    const email = req.body?.email;
+    console.error('Ошибка регистрации:', e, email ? `Email: ${email}` : '');
     res.status(500).json({ error: 'Ошибка регистрации' });
   }
 });
@@ -59,20 +73,20 @@ router.post('/register', async (req, res) => {
 router.get('/verify', async (req, res) => {
   try {
     const { token } = req.query;
-    if (!token) return res.status(400).send('Нет токена');
+    if (!token) return res.status(400).json({ success: false, message: 'Нет токена' });
     let userId;
     try {
       const payload = jwt.verify(token, process.env.JWT_SECRET || 'jwtsecret');
       userId = payload.userId;
     } catch (e) {
-      return res.status(400).send('Неверный или истёкший токен');
+      return res.status(400).json({ success: false, message: 'Неверный или истёкший токен' });
     }
     const user = await User.findByIdAndUpdate(userId, { isVerified: true }, { new: true });
-    if (!user) return res.status(400).send('Пользователь не найден');
-    res.send('Почта подтверждена! Теперь вы можете войти.');
+    if (!user) return res.status(400).json({ success: false, message: 'Пользователь не найден' });
+    return res.json({ success: true, message: 'Почта подтверждена! Теперь вы можете войти.' });
   } catch (e) {
     console.error(e);
-    res.status(500).send('Ошибка подтверждения');
+    return res.status(500).json({ success: false, message: 'Ошибка подтверждения' });
   }
 });
 
