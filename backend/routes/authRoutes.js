@@ -93,6 +93,19 @@ router.get('/verify', async (req, res) => {
     return res.status(500).json({ success: false, message: 'Ошибка подтверждения' });
   }
 });
+router.get('/test-mail', async (req, res) => {
+  try {
+    await sendMail({
+      to: 'SEMERENKO-GTS@MAIL.RU', // <-- подставь свой email
+      subject: 'Тестовое письмо (Render)',
+      html: 'Проверка отправки почты через сервер на Render!'
+    });
+    res.json({ success: true, message: 'Письмо отправлено' });
+  } catch (e) {
+    console.error('Ошибка при тесте почты:', e);
+    res.status(500).json({ success: false, error: String(e) });
+  }
+});
 
 // ——— Вход (только для подтверждённых)
 router.post('/login', async (req, res) => {
