@@ -198,4 +198,26 @@ router.post('/verify', async (req, res) => {
   }
 });
 
+// ——— Получение текущего пользователя (GET /api/auth/me)
+router.get('/me', async (req, res) => {
+  try {
+    // Получаем токен из заголовка Authorization: Bearer ... или из cookie
+    const auth = req.headers.authorization;
+    if (!auth) return res.status(401).json({ error: 'Нет токена' });
+    const token = auth.split(' ')[1];
+    const payload = jwt.verify(token, process.env.JWT_SECRET || 'jwtsecret');
+    const user = await User.findById(payload.userId).select('-password');
+    if (!user) return res.status(404).json({ error: 'Пользователь не найден' });
+    // Возвращаем только нужные поля
+    res.json({
+      email: user.email,
+      companyName: user.companyName,
+      role: user.role,
+      isVerified: user.isVerified
+    });
+  } catch (e) {
+    return res.status(401).json({ error: 'Неверный или истёкший токен' });
+  }
+});
+
 module.exports = router;
