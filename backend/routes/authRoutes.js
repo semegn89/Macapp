@@ -56,10 +56,10 @@ router.post('/register', async (req, res) => {
     try {
       await sendMail({
         to: email,
-        subject: 'Подтвердите ваш email в EUROPAY',
-        html: `<b>Спасибо за регистрацию!</b><br>Пожалуйста, подтвердите свой e-mail:<br><a href="${link}">${link}</a>`
+        subject: 'Тестовая регистрация EUROPAY',
+        html: 'Это тестовое письмо регистрации. Если вы видите это письмо, значит отправка работает.'
       });
-      console.log('>>> Письмо успешно отправлено на', email, 'с ссылкой:', link);
+      console.log('>>> Письмо успешно отправлено на', email, ' (тестовое диагностическое письмо)');
     } catch (mailErr) {
       console.error('>>> Ошибка отправки письма:', mailErr);
       return res.status(500).json({ error: 'Ошибка при отправке письма. Попробуйте позже.' });
@@ -93,19 +93,7 @@ router.get('/verify', async (req, res) => {
     return res.status(500).json({ success: false, message: 'Ошибка подтверждения' });
   }
 });
-router.get('/test-mail', async (req, res) => {
-  try {
-    await sendMail({
-      to: 'SEMERENKO-GTS@MAIL.RU', // <-- подставь свой email
-      subject: 'Тестовое письмо (Render)',
-      html: 'Проверка отправки почты через сервер на Render!'
-    });
-    res.json({ success: true, message: 'Письмо отправлено' });
-  } catch (e) {
-    console.error('Ошибка при тесте почты:', e);
-    res.status(500).json({ success: false, error: String(e) });
-  }
-});
+
 
 // ——— Вход (только для подтверждённых)
 router.post('/login', async (req, res) => {
