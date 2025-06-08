@@ -779,6 +779,10 @@ document.getElementById('registerForm')?.addEventListener('submit', async functi
     return;
   }
 
+  // Блокируем кнопку на всё время запроса
+  const submitBtn = form.querySelector('button[type="submit"], input[type="submit"]');
+  if (submitBtn) submitBtn.disabled = true;
+
   // Всё валидно — ОТПРАВКА через POST fetch (убирает 405!)
   const formData = {};
   form.querySelectorAll('input,select').forEach(f => { if (f.name) formData[f.name]=f.value; });
@@ -788,15 +792,26 @@ document.getElementById('registerForm')?.addEventListener('submit', async functi
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(formData)
     });
-    const data = await resp.json();
-    if (!resp.ok) {
+    let data = {};
+    try { data = await resp.json(); } catch (_) {}
+    // Проверяем: только если статус 2xx и success === true — успех
+    if (!resp.ok || data?.success !== true) {
       if (data?.error) showToast(data.error, 'error');
+      else if (data?.message && data.success === false) showToast(data.message, 'error');
       else showToast('Ошибка регистрации', 'error');
+      // Не сбрасываем форму, не закрываем модалку, не показываем успех
       return;
     }
+    // Только при успехе:
     showToast(data.message || 'Регистрация прошла успешно!', 'success');
-    // Можно закрыть модалку, сбросить форму, или обновить UI
+    form.reset();
+    // Закрыть модалку, если была открыта
+    if (typeof window.closeAllModals === 'function') window.closeAllModals();
+    // Никаких сообщений об ошибке не показывается вместе с успехом
   } catch (e) {
     showToast('Ошибка сервера при регистрации!', 'error');
+    // Не сбрасываем форму, не закрываем модалку, не показываем успех
+  } finally {
+    if (submitBtn) submitBtn.disabled = false;
   }
 });
