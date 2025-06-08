@@ -6,11 +6,17 @@ require('dotenv').config();
 const app = express();
 
 // === ВАЖНО: только один раз cors, строго с нужным origin и credentials ===
+const allowedOrigins = [
+  'http://127.0.0.1:5500',
+  'http://localhost:5500',
+  'http://192.168.100.152:5500',
+  'http://192.168.100.152:5001', // если нужен
+  // Добавь сюда нужные
+];
 app.use(cors({
-  origin: 'http://192.168.100.152:5500', // <-- твой локальный IP и порт фронта
+  origin: allowedOrigins,
   credentials: true
 }));
-app.use(express.json());
 
 // ===== DIAGNOSTICS LOGS (start)
 console.log('======= DIAGNOSTICS START =======');
